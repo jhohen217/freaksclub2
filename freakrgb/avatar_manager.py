@@ -4,7 +4,7 @@ import asyncio
 import random
 import aiohttp
 from typing import List
-from freakrgb.config_manager import ConfigManager
+from .config_manager import ConfigManager
 
 class AvatarManager:
     def __init__(self, client):

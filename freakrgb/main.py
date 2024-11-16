@@ -1,9 +1,9 @@
 import discord
 from discord.ext import tasks
 import asyncio
-from freakrgb.rgb_manager import RGBManager
-from freakrgb.avatar_manager import AvatarManager
-from freakrgb.config_manager import ConfigManager
+from .rgb_manager import RGBManager
+from .avatar_manager import AvatarManager
+from .config_manager import ConfigManager
 
 class FreakBot(discord.Client):
     def __init__(self):

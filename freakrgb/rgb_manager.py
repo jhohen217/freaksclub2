@@ -1,7 +1,7 @@
 import discord
 from discord.ext import tasks
 import asyncio
-from freakrgb.config_manager import ConfigManager
+from .config_manager import ConfigManager
 
 class RGBManager:
     def __init__(self, client):

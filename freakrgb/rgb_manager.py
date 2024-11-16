@@ -1,12 +1,14 @@
 import discord
 from discord.ext import tasks
 import asyncio
+from freakrgb.config_manager import ConfigManager
 
 class RGBManager:
     def __init__(self, client):
         self.client = client
-        self.ROLE_ID = 1286862610280742933
-        self.color_change_interval = 3600  # seconds
+        self.config = ConfigManager()
+        self.ROLE_ID = self.config.get('role_id')
+        self.color_change_interval = self.config.get('color_change_interval', 3600)  # seconds
         
         # Color configuration
         self.colors = [
@@ -65,6 +67,7 @@ class RGBManager:
                 try:
                     seconds = int(parts[1])
                     self.color_change_interval = seconds
+                    self.config.update('color_change_interval', seconds)
                     await message.channel.send(f"Color change interval set to {seconds} seconds.")
                     print(f"Color change interval updated to {seconds} seconds.")
                     return True

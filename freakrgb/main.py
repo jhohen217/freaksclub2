@@ -1,8 +1,9 @@
 import discord
 from discord.ext import tasks
 import asyncio
-from .rgb_manager import RGBManager
-from .avatar_manager import AvatarManager
+from freakrgb.rgb_manager import RGBManager
+from freakrgb.avatar_manager import AvatarManager
+from freakrgb.config_manager import ConfigManager
 
 class FreakBot(discord.Client):
     def __init__(self):
@@ -12,12 +13,15 @@ class FreakBot(discord.Client):
         intents.members = True
         super().__init__(intents=intents)
         
+        # Load configuration
+        self.config = ConfigManager()
+        
         # Initialize managers
         self.rgb_manager = RGBManager(self)
         self.avatar_manager = AvatarManager(self)
         
         # Server configuration
-        self.DEFAULT_SERVER_NAME = "🌭freaksTest"
+        self.DEFAULT_SERVER_NAME = self.config.get('default_server_name', "🌭freaksTest")
         self.server_name = self.DEFAULT_SERVER_NAME
 
     async def setup_hook(self):
@@ -66,4 +70,5 @@ class FreakBot(discord.Client):
                 new_name = ' '.join(parts[1:])
                 self.server_name = new_name
                 await self.guilds[0].edit(name=new_name)
+                self.config.update('default_server_name', new_name)
                 await message.channel.send(f"Server name updated to: {new_name}")

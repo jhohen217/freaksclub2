@@ -4,13 +4,15 @@ import asyncio
 import random
 import aiohttp
 from typing import List
+from freakrgb.config_manager import ConfigManager
 
 class AvatarManager:
     def __init__(self, client):
         self.client = client
-        self.ICON_CHANNEL_ID = 1304395055490138194
-        self.ROLE_ID = 1286862610280742933  # Booster role ID
-        self.ICON_CHANGE_INTERVAL = 20  # seconds
+        self.config = ConfigManager()
+        self.ICON_CHANNEL_ID = self.config.get('icon_channel_id')
+        self.ROLE_ID = self.config.get('role_id')  # Using same role ID for permissions
+        self.ICON_CHANGE_INTERVAL = self.config.get('icon_change_interval', 20)  # seconds
         self.image_urls: List[str] = []
 
     def start(self):

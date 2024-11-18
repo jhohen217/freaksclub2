@@ -41,8 +41,7 @@ class FreakBot(discord.Client):
                 for config in missing_configs:
                     print(f"- {config}")
                 print("\nPlease check your config.json file and ensure all required values are set.")
-                input("\nPress Enter to exit...")
-                sys.exit(1)
+                self.handle_error()
             
             # Initialize managers
             self.rgb_manager = RGBManager(self)
@@ -53,9 +52,17 @@ class FreakBot(discord.Client):
             print(f"Error during initialization: {str(e)}")
             print("\nFull error details:")
             traceback.print_exc()
-            print("\nPlease ensure config.json exists and contains valid configuration.")
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+            self.handle_error()
+
+    def handle_error(self):
+        """Interactive error handling"""
+        while True:
+            print("\nType 'exit' to close the application")
+            user_input = input(">>> ").strip().lower()
+            if user_input == 'exit':
+                sys.exit(1)
+            else:
+                print("Invalid command. Type 'exit' to close.")
 
     async def setup_hook(self):
         """Set up background tasks"""
@@ -106,15 +113,13 @@ if __name__ == "__main__":
         if not os.path.exists(config_path):
             print(f"Error: config.json not found at {config_path}!")
             print("Please copy config.json.example to config.json and update the values.")
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+            FreakBot().handle_error()
             
         token = os.getenv('DISCORD_BOT_TOKEN')
         if not token:
             print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
             print("Please ensure your .env file exists and contains a valid token.")
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+            FreakBot().handle_error()
             
         client = FreakBot()
         client.run(token)
@@ -122,5 +127,4 @@ if __name__ == "__main__":
         print(f"\nError starting bot: {str(e)}")
         print("\nFull error details:")
         traceback.print_exc()
-        input("\nPress Enter to exit...")
-        sys.exit(1)
+        FreakBot().handle_error()

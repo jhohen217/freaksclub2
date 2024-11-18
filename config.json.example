@@ -1,7 +1,7 @@
 {
-    "role_id": 1286862610280742933,
-    "icon_channel_id": 1304395055490138194,
-    "default_server_name": "🌭freaksTest",
+    "rgb_role_id": "1150577684771000382",
+    "booster_role_id": "1172098000563228716",
     "color_change_interval": 3600,
-    "icon_change_interval": 20
+    "banner_change_interval": 20,
+    "banner_storage_path": "/home/freaksclub2/banners"
 }

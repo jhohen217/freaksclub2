@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 class ConfigManager:
     def __init__(self):
-        self.config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+        # Config should be in /home/freaksclub2/config.json
+        self.config_path = '/home/freaksclub2/config.json'
         # Load environment variables
         load_dotenv()
         self.config: Dict[str, Any] = self.load_config()
@@ -18,8 +19,34 @@ class ConfigManager:
                 "Please copy config.json.example to config.json and update with your settings."
             )
             
-        with open(self.config_path, 'r') as f:
-            config = json.load(f)
+        try:
+            with open(self.config_path, 'r') as f:
+                config = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file: {str(e)}")
+        except Exception as e:
+            raise Exception(f"Error reading config file: {str(e)}")
+        
+        # Validate required fields
+        required_fields = {
+            'rgb_role_id': "Role ID for RGB color cycling",
+            'booster_role_id': "Role ID for banner management permissions",
+            'color_change_interval': "Interval (in seconds) for RGB color changes",
+            'banner_change_interval': "Interval (in seconds) for banner changes",
+            'banner_storage_path': "Path where banner images will be stored"
+        }
+        
+        missing_fields = []
+        for field, description in required_fields.items():
+            if field not in config:
+                missing_fields.append(f"{field} ({description})")
+        
+        if missing_fields:
+            raise ValueError(
+                "Missing required configuration fields:\n- " + 
+                "\n- ".join(missing_fields) +
+                "\n\nPlease check config.json.example for the required format."
+            )
         
         # Override token with environment variable if it exists
         token = os.getenv('DISCORD_BOT_TOKEN')
@@ -41,8 +68,11 @@ class ConfigManager:
         # Don't save token to config file
         save_config.pop('token', None)
         
-        with open(self.config_path, 'w') as f:
-            json.dump(save_config, f, indent=4)
+        try:
+            with open(self.config_path, 'w') as f:
+                json.dump(save_config, f, indent=4)
+        except Exception as e:
+            raise Exception(f"Error saving config file: {str(e)}")
 
     def update(self, key: str, value: Any):
         """Update a configuration value and save"""

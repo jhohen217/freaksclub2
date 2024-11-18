@@ -7,8 +7,8 @@ class RGBManager:
     def __init__(self, client):
         self.client = client
         self.config = ConfigManager()
-        self.ROLE_ID = self.config.get('role_id')
-        self.color_change_interval = self.config.get('color_change_interval', 3600)  # seconds
+        self.ROLE_ID = int(self.config.get('rgb_role_id'))  # Convert to int for comparison
+        self.color_change_interval = self.config.get('color_change_interval')
         
         # Color configuration
         self.colors = [

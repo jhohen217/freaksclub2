@@ -1,9 +1,15 @@
 import discord
 from discord.ext import tasks
 import asyncio
+import os
+import sys
+from dotenv import load_dotenv
 from .rgb_manager import RGBManager
-from .avatar_manager import AvatarManager
+from .banner_manager import BannerManager
 from .config_manager import ConfigManager
+
+# Load environment variables
+load_dotenv()
 
 class FreakBot(discord.Client):
     def __init__(self):
@@ -14,28 +20,51 @@ class FreakBot(discord.Client):
         super().__init__(intents=intents)
         
         # Load configuration
-        self.config = ConfigManager()
-        
-        # Initialize managers
-        self.rgb_manager = RGBManager(self)
-        self.avatar_manager = AvatarManager(self)
-        
-        # Server configuration
-        self.DEFAULT_SERVER_NAME = self.config.get('default_server_name', "🌭freaksTest")
-        self.server_name = self.DEFAULT_SERVER_NAME
-        self.VERSION = "1.0.0"  # Added version number
+        try:
+            self.config = ConfigManager()
+            
+            # Verify required config values exist
+            required_configs = [
+                'rgb_role_id',
+                'booster_role_id',
+                'color_change_interval',
+                'banner_change_interval',
+                'banner_storage_path'
+            ]
+            
+            missing_configs = []
+            for config in required_configs:
+                if self.config.get(config) is None:
+                    missing_configs.append(config)
+            
+            if missing_configs:
+                print("Error: Missing required configuration values:")
+                for config in missing_configs:
+                    print(f"- {config}")
+                print("\nPlease check your config.json file and ensure all required values are set.")
+                sys.exit(1)
+            
+            # Initialize managers
+            self.rgb_manager = RGBManager(self)
+            self.banner_manager = BannerManager(self)
+            self.VERSION = "1.1.0"
+            
+        except Exception as e:
+            print(f"Error during initialization: {str(e)}")
+            print("Please ensure config.json exists and contains valid configuration.")
+            sys.exit(1)
 
     async def setup_hook(self):
         """Set up background tasks"""
         self.rgb_manager.start()
-        self.avatar_manager.start()
+        self.banner_manager.start()
 
     async def on_ready(self):
         """Handle bot ready event"""
         print("Bot is connected and ready.")
         
-        # Load existing images for avatar cycling
-        await self.avatar_manager.load_existing_images()
+        # Load existing images for banner cycling
+        await self.banner_manager.load_existing_images()
         
         if self.guilds:
             guild = self.guilds[0]
@@ -44,8 +73,8 @@ class FreakBot(discord.Client):
             for channel in guild.text_channels:
                 if 'radio' in channel.name.lower():
                     embed = discord.Embed(
-                        title=self.server_name,
-                        description=f"freakrgb v{self.VERSION} started!",  # Updated startup message
+                        title="Bot Started",
+                        description=f"freakrgb v{self.VERSION} started!",
                         color=discord.Color.green()
                     )
                     await channel.send(embed=embed)
@@ -60,16 +89,29 @@ class FreakBot(discord.Client):
         if await self.rgb_manager.handle_command(message):
             return
             
-        # Then try handling with Avatar manager
-        if await self.avatar_manager.handle_message(message):
+        # Then try handling with Banner manager
+        if await self.banner_manager.handle_command(message):
             return
             
-        # Handle server name command
-        if message.content.lower().startswith('rgb!'):
-            parts = message.content.split(' ')
-            if len(parts) > 1:
-                new_name = ' '.join(parts[1:])
-                self.server_name = new_name
-                await self.guilds[0].edit(name=new_name)
-                self.config.update('default_server_name', new_name)
-                await message.channel.send(f"Server name updated to: {new_name}")
+        # Then try handling banner image uploads
+        if await self.banner_manager.handle_message(message):
+            return
+
+if __name__ == "__main__":
+    try:
+        if not os.path.exists('config.json'):
+            print("Error: config.json not found!")
+            print("Please copy config.json.example to config.json and update the values.")
+            sys.exit(1)
+            
+        token = os.getenv('DISCORD_BOT_TOKEN')
+        if not token:
+            print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
+            print("Please ensure your .env file exists and contains a valid token.")
+            sys.exit(1)
+            
+        client = FreakBot()
+        client.run(token)
+    except Exception as e:
+        print(f"Error starting bot: {str(e)}")
+        sys.exit(1)

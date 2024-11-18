@@ -14,7 +14,7 @@ A Discord bot that manages server banners and role colors.
   - Cycles a specified role through RGB colors
   - Configurable color change interval
 
-## Installation
+## Setup
 
 1. Clone the repository:
 ```bash
@@ -22,17 +22,12 @@ git clone https://github.com/yourusername/freakrgb.git
 cd freakrgb
 ```
 
-2. Install the package:
-```bash
-pip install -e .
-```
-
-3. Copy the example config and update it:
+2. Copy the example config and update it:
 ```bash
 cp config.json.example config.json
 ```
 
-4. Update config.json with your settings:
+3. Update config.json with your settings:
 ```json
 {
     "rgb_role_id": 1150577684771000382,
@@ -43,7 +38,7 @@ cp config.json.example config.json
 }
 ```
 
-5. Create a .env file with your Discord bot token:
+4. Create a .env file with your Discord bot token:
 ```
 DISCORD_BOT_TOKEN=your_token_here
 ```
@@ -71,5 +66,6 @@ DISCORD_BOT_TOKEN=your_token_here
 
 ## Running the Bot
 
+Simply run:
 ```bash
-python main.py
+python freakrgb/main.py

@@ -23,6 +23,7 @@ class FreakBot(discord.Client):
         # Server configuration
         self.DEFAULT_SERVER_NAME = self.config.get('default_server_name', "🌭freaksTest")
         self.server_name = self.DEFAULT_SERVER_NAME
+        self.VERSION = "1.0.0"  # Added version number
 
     async def setup_hook(self):
         """Set up background tasks"""
@@ -44,7 +45,7 @@ class FreakBot(discord.Client):
                 if 'radio' in channel.name.lower():
                     embed = discord.Embed(
                         title=self.server_name,
-                        description="freakrgb started!",
+                        description=f"freakrgb v{self.VERSION} started!",  # Updated startup message
                         color=discord.Color.green()
                     )
                     await channel.send(embed=embed)

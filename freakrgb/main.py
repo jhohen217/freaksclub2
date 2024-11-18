@@ -1,8 +1,7 @@
 import discord
-from discord.ext import tasks
-import asyncio
 import os
 import sys
+import traceback
 from dotenv import load_dotenv
 from .rgb_manager import RGBManager
 from .banner_manager import BannerManager
@@ -42,6 +41,7 @@ class FreakBot(discord.Client):
                 for config in missing_configs:
                     print(f"- {config}")
                 print("\nPlease check your config.json file and ensure all required values are set.")
+                input("\nPress Enter to exit...")
                 sys.exit(1)
             
             # Initialize managers
@@ -51,7 +51,10 @@ class FreakBot(discord.Client):
             
         except Exception as e:
             print(f"Error during initialization: {str(e)}")
-            print("Please ensure config.json exists and contains valid configuration.")
+            print("\nFull error details:")
+            traceback.print_exc()
+            print("\nPlease ensure config.json exists and contains valid configuration.")
+            input("\nPress Enter to exit...")
             sys.exit(1)
 
     async def setup_hook(self):
@@ -99,19 +102,25 @@ class FreakBot(discord.Client):
 
 if __name__ == "__main__":
     try:
-        if not os.path.exists('config.json'):
-            print("Error: config.json not found!")
+        config_path = '/home/freaksclub2/config.json'
+        if not os.path.exists(config_path):
+            print(f"Error: config.json not found at {config_path}!")
             print("Please copy config.json.example to config.json and update the values.")
+            input("\nPress Enter to exit...")
             sys.exit(1)
             
         token = os.getenv('DISCORD_BOT_TOKEN')
         if not token:
             print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
             print("Please ensure your .env file exists and contains a valid token.")
+            input("\nPress Enter to exit...")
             sys.exit(1)
             
         client = FreakBot()
         client.run(token)
     except Exception as e:
-        print(f"Error starting bot: {str(e)}")
+        print(f"\nError starting bot: {str(e)}")
+        print("\nFull error details:")
+        traceback.print_exc()
+        input("\nPress Enter to exit...")
         sys.exit(1)

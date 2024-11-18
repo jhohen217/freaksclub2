@@ -3,9 +3,9 @@ import os
 import sys
 import traceback
 from dotenv import load_dotenv
-from .rgb_manager import RGBManager
-from .banner_manager import BannerManager
-from .config_manager import ConfigManager
+import freakrgb.rgb_manager as rgb_manager
+import freakrgb.banner_manager as banner_manager
+import freakrgb.config_manager as config_manager
 
 # Load environment variables
 load_dotenv()
@@ -20,7 +20,7 @@ class FreakBot(discord.Client):
         
         # Load configuration
         try:
-            self.config = ConfigManager()
+            self.config = config_manager.ConfigManager()
             
             # Verify required config values exist
             required_configs = [
@@ -44,8 +44,8 @@ class FreakBot(discord.Client):
                 self.handle_error()
             
             # Initialize managers
-            self.rgb_manager = RGBManager(self)
-            self.banner_manager = BannerManager(self)
+            self.rgb_manager = rgb_manager.RGBManager(self)
+            self.banner_manager = banner_manager.BannerManager(self)
             self.VERSION = "1.1.0"
             
         except Exception as e:

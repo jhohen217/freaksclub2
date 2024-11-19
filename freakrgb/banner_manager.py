@@ -82,14 +82,33 @@ class BannerManager:
         """Get list of all saved banner images"""
         return [f for f in os.listdir(self.banners_dir) if f.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
 
+    async def change_banner_manually(self):
+        """Manually change the server banner"""
+        if not self.image_urls:
+            return False, "No images available to set as server banner"
+
+        image_url = random.choice(self.image_urls)
+        
+        try:
+            image_data = await self.download_image(image_url)
+            if image_data:
+                guild = self.client.guilds[0]
+                await guild.edit(banner=image_data)
+                return True, f"Successfully changed server banner to {image_url}"
+            else:
+                self.image_urls.remove(image_url)
+                return False, f"Failed to download image from {image_url}"
+        except Exception as e:
+            print(f"Error changing server banner: {e}")
+            if "Banner is too small" not in str(e):  # Don't remove if it's just a size issue
+                self.image_urls.remove(image_url)
+            return False, str(e)
+
     async def handle_message(self, message):
         """Handle messages in the radio channel"""
         if 'radio' in message.channel.name.lower():
             if message.attachments and self.client.user in message.mentions:
-                # Debug print to check role IDs
-                print(f"User roles: {[role.id for role in message.author.roles]}")
-                print(f"Looking for booster role: {self.BOOSTER_ROLE_ID}")
-                
+                # Check booster role
                 if not any(role.id == self.BOOSTER_ROLE_ID for role in message.author.roles):
                     await message.channel.send(
                         f"{message.author.mention} Only server boosters can add banner images!",
@@ -118,6 +137,36 @@ class BannerManager:
             return False
 
         command = message.content.lower().split()[0]
+        
+        # Help command is always allowed
+        if command == '/bannerhelp':
+            help_text = """
+**Banner Management Commands**
+`/bannerhelp` - Show this help message
+`/banners` - List all saved banner images (Boosters only)
+`/showbanner <number/filename>` - Display a specific banner image (Boosters only)
+`/deletebanner <number/filename>` - Delete a specific banner image (Boosters only)
+`/changebanner` - Manually change the server banner (Boosters only)
+`/setbannerinterval <seconds>` - Set banner change interval (Boosters only)
+
+**Adding New Banners**
+To add a new banner image:
+1. Post an image in the radio channel
+2. Tag the bot in your message
+3. You must have the server booster role to add images
+
+**Note**: Banner images are stored in {0} and cycle every {1} seconds
+""".format(self.banners_dir, self.banner_change_interval)
+            await message.channel.send(help_text)
+            return True
+
+        # Check if the user is a booster for other commands
+        if not any(role.id == self.BOOSTER_ROLE_ID for role in message.author.roles):
+            await message.channel.send(
+                f"{message.author.mention} Only server boosters can modify banner settings!",
+                delete_after=10
+            )
+            return True
         
         if command == '/banners':
             banners = self.get_saved_banners()
@@ -179,24 +228,30 @@ class BannerManager:
             self.image_urls = [url for url in self.image_urls if filename not in url]
             await message.channel.send(f"Banner '{filename}' has been deleted.")
             return True
-            
-        elif command == '/help':
-            help_text = """
-**Banner Management Commands**
-`/banners` - List all saved banner images
-`/showbanner <number/filename>` - Display a specific banner image
-`/deletebanner <number/filename>` - Delete a specific banner image
-`/help` - Show this help message
-
-**Adding New Banners**
-To add a new banner image:
-1. Post an image in the radio channel
-2. Tag the bot in your message
-3. You must have the server booster role to add images
-
-**Note**: Banner images are stored in {0} and cycle every {1} seconds
-""".format(self.banners_dir, self.banner_change_interval)
-            await message.channel.send(help_text)
+        
+        elif command == '/changebanner':
+            success, result_message = await self.change_banner_manually()
+            await message.channel.send(result_message)
             return True
+        
+        elif command == '/setbannerinterval':
+            try:
+                parts = message.content.split()
+                if len(parts) < 2:
+                    await message.channel.send("Please provide an interval in seconds. Usage: `/setbannerinterval <seconds>`")
+                    return True
+
+                seconds = float(parts[1])
+                if seconds <= 0:
+                    await message.channel.send("Interval must be a positive number.")
+                    return True
+
+                self.banner_change_interval = seconds
+                self.config.set('banner_change_interval', seconds)
+                await message.channel.send(f"Banner change interval set to {seconds} seconds.")
+                return True
+            except ValueError:
+                await message.channel.send("Invalid interval. Please provide a valid number of seconds.")
+                return True
             
         return False

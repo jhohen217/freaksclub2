@@ -51,7 +51,7 @@ class FreakBot(discord.Client):
             self.rgb_manager = rgb_manager.RGBManager(self)
             self.banner_manager = banner_manager.BannerManager(self)
             self.BOOSTER_ROLE_ID = int(self.config.get('booster_role_id'))
-            self.VERSION = "1.5.0"
+            self.VERSION = "1.6.0"
             
         except Exception as e:
             print(f"Error during initialization: {str(e)}")
@@ -153,14 +153,8 @@ class FreakBot(discord.Client):
             self.config.set('banner_change_interval', seconds)
             await interaction.response.send_message(f"Banner change interval set to {seconds} seconds.", ephemeral=True)
 
-        # Sync commands with the server
-        if self.guilds:
-            guild = self.guilds[0]  # Get the first guild the bot is in
-            print(f"Syncing commands for guild: {guild.name}")
-            self.tree.copy_global_to(guild=guild)
-            await self.tree.sync(guild=guild)
-        else:
-            print("No guilds found to sync commands")
+        # Sync commands globally
+        await self.tree.sync()
 
     async def on_ready(self):
         """Handle bot ready event"""
@@ -182,6 +176,10 @@ class FreakBot(discord.Client):
                     )
                     await channel.send(embed=embed)
                     print(f"Sent startup message to channel: {channel.name}")
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        """Handle interactions"""
+        await self.tree.process_app_commands(interaction)
 
 if __name__ == "__main__":
     try:

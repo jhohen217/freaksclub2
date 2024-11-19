@@ -60,52 +60,28 @@ class RGBManager:
             
         await asyncio.sleep(self.color_change_interval)
 
-    async def handle_command(self, message):
-        """Handle RGB-related commands"""
-        if not message.content.startswith('/'):
-            return False
-
-        command = message.content.lower().split()[0]
-
-        # Help command is always allowed
-        if command == '/rgbhelp':
+    def register_commands(self, tree, guild):
+        """Register RGB-related slash commands"""
+        
+        @tree.command(name="rgbhelp", description="Show RGB-related commands", guild=guild)
+        async def rgb_help(interaction: discord.Interaction):
             help_text = """
 **RGB Role Color Commands**
 `/rgbhelp` - Show this help message
-`/setrgbinterval <seconds>` - Set RGB color change interval (Boosters only)
-
-**Note**: Only server boosters can modify the RGB color change interval.
+`/setrgbinterval` - Set RGB color change interval (Boosters only)
 """
-            await message.channel.send(help_text)
-            return True
+            await interaction.response.send_message(help_text, ephemeral=True)
 
-        # Check if the user is a booster for other commands
-        if not any(role.id == self.BOOSTER_ROLE_ID for role in message.author.roles):
-            await message.channel.send(
-                f"{message.author.mention} Only server boosters can modify RGB settings!",
-                delete_after=10
-            )
-            return True
+        @tree.command(name="setrgbinterval", description="Set RGB color change interval (Boosters only)", guild=guild)
+        async def set_rgb_interval(interaction: discord.Interaction, seconds: float):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can modify RGB settings!", ephemeral=True)
+                return
 
-        # Set RGB interval command
-        if command == '/setrgbinterval':
-            try:
-                parts = message.content.split()
-                if len(parts) < 2:
-                    await message.channel.send("Please provide an interval in seconds. Usage: `/setrgbinterval <seconds>`")
-                    return True
+            if seconds <= 0:
+                await interaction.response.send_message("Interval must be a positive number.", ephemeral=True)
+                return
 
-                seconds = float(parts[1])
-                if seconds <= 0:
-                    await message.channel.send("Interval must be a positive number.")
-                    return True
-
-                self.color_change_interval = seconds
-                self.config.set('color_change_interval', seconds)
-                await message.channel.send(f"RGB color change interval set to {seconds} seconds.")
-                return True
-            except ValueError:
-                await message.channel.send("Invalid interval. Please provide a valid number of seconds.")
-                return True
-
-        return False
+            self.color_change_interval = seconds
+            self.config.set('color_change_interval', seconds)
+            await interaction.response.send_message(f"RGB color change interval set to {seconds} seconds.", ephemeral=True)

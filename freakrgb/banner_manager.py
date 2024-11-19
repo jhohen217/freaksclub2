@@ -131,23 +131,19 @@ class BannerManager:
             return True
         return False
 
-    async def handle_command(self, message):
-        """Handle banner-related commands"""
-        if not message.content.startswith('/'):
-            return False
-
-        command = message.content.lower().split()[0]
+    def register_commands(self, tree, guild):
+        """Register banner-related slash commands"""
         
-        # Help command is always allowed
-        if command == '/bannerhelp':
+        @tree.command(name="bannerhelp", description="Show banner-related commands", guild=guild)
+        async def banner_help(interaction: discord.Interaction):
             help_text = """
 **Banner Management Commands**
 `/bannerhelp` - Show this help message
 `/banners` - List all saved banner images (Boosters only)
-`/showbanner <number/filename>` - Display a specific banner image (Boosters only)
-`/deletebanner <number/filename>` - Delete a specific banner image (Boosters only)
+`/showbanner` - Display a specific banner image (Boosters only)
+`/deletebanner` - Delete a specific banner image (Boosters only)
 `/changebanner` - Manually change the server banner (Boosters only)
-`/setbannerinterval <seconds>` - Set banner change interval (Boosters only)
+`/setbannerinterval` - Set banner change interval (Boosters only)
 
 **Adding New Banners**
 To add a new banner image:
@@ -157,101 +153,82 @@ To add a new banner image:
 
 **Note**: Banner images are stored in {0} and cycle every {1} seconds
 """.format(self.banners_dir, self.banner_change_interval)
-            await message.channel.send(help_text)
-            return True
+            await interaction.response.send_message(help_text, ephemeral=True)
 
-        # Check if the user is a booster for other commands
-        if not any(role.id == self.BOOSTER_ROLE_ID for role in message.author.roles):
-            await message.channel.send(
-                f"{message.author.mention} Only server boosters can modify banner settings!",
-                delete_after=10
-            )
-            return True
-        
-        if command == '/banners':
+        @tree.command(name="banners", description="List saved banner images (Boosters only)", guild=guild)
+        async def list_banners(interaction: discord.Interaction):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can list banner images!", ephemeral=True)
+                return
+
             banners = self.get_saved_banners()
             if not banners:
-                await message.channel.send("No saved banner images found.")
-                return True
+                await interaction.response.send_message("No saved banner images found.", ephemeral=True)
+                return
             
             banner_list = "\n".join(f"{i+1}. {banner}" for i, banner in enumerate(banners))
-            await message.channel.send(f"Saved banner images:\n```\n{banner_list}\n```")
-            return True
-            
-        elif command == '/showbanner':
-            parts = message.content.split()
-            if len(parts) < 2:
-                await message.channel.send("Please specify the banner number or filename.")
-                return True
-                
+            await interaction.response.send_message(f"Saved banner images:\n```\n{banner_list}\n```", ephemeral=True)
+
+        @tree.command(name="showbanner", description="Display a specific banner image (Boosters only)", guild=guild)
+        async def show_banner(interaction: discord.Interaction, number: int):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can view banner images!", ephemeral=True)
+                return
+
             banners = self.get_saved_banners()
-            try:
-                index = int(parts[1]) - 1
-                if 0 <= index < len(banners):
-                    filename = banners[index]
-                else:
-                    await message.channel.send("Invalid banner number.")
-                    return True
-            except ValueError:
-                filename = " ".join(parts[1:])
-                if filename not in banners:
-                    await message.channel.send("Banner not found.")
-                    return True
-                    
+            if not banners:
+                await interaction.response.send_message("No saved banner images found.", ephemeral=True)
+                return
+
+            if number < 1 or number > len(banners):
+                await interaction.response.send_message("Invalid banner number.", ephemeral=True)
+                return
+
+            filename = banners[number - 1]
             filepath = os.path.join(self.banners_dir, filename)
-            await message.channel.send(file=discord.File(filepath))
-            return True
-            
-        elif command == '/deletebanner':
-            parts = message.content.split()
-            if len(parts) < 2:
-                await message.channel.send("Please specify the banner number or filename.")
-                return True
-                
+            await interaction.response.send_message(file=discord.File(filepath), ephemeral=True)
+
+        @tree.command(name="deletebanner", description="Delete a specific banner image (Boosters only)", guild=guild)
+        async def delete_banner(interaction: discord.Interaction, number: int):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can delete banner images!", ephemeral=True)
+                return
+
             banners = self.get_saved_banners()
-            try:
-                index = int(parts[1]) - 1
-                if 0 <= index < len(banners):
-                    filename = banners[index]
-                else:
-                    await message.channel.send("Invalid banner number.")
-                    return True
-            except ValueError:
-                filename = " ".join(parts[1:])
-                if filename not in banners:
-                    await message.channel.send("Banner not found.")
-                    return True
-                    
+            if not banners:
+                await interaction.response.send_message("No saved banner images found.", ephemeral=True)
+                return
+
+            if number < 1 or number > len(banners):
+                await interaction.response.send_message("Invalid banner number.", ephemeral=True)
+                return
+
+            filename = banners[number - 1]
             filepath = os.path.join(self.banners_dir, filename)
             os.remove(filepath)
             # Also remove from URLs if present
             self.image_urls = [url for url in self.image_urls if filename not in url]
-            await message.channel.send(f"Banner '{filename}' has been deleted.")
-            return True
-        
-        elif command == '/changebanner':
+            await interaction.response.send_message(f"Banner '{filename}' has been deleted.", ephemeral=True)
+
+        @tree.command(name="changebanner", description="Manually change the server banner (Boosters only)", guild=guild)
+        async def change_banner(interaction: discord.Interaction):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can change the banner!", ephemeral=True)
+                return
+
             success, result_message = await self.change_banner_manually()
-            await message.channel.send(result_message)
-            return True
-        
-        elif command == '/setbannerinterval':
-            try:
-                parts = message.content.split()
-                if len(parts) < 2:
-                    await message.channel.send("Please provide an interval in seconds. Usage: `/setbannerinterval <seconds>`")
-                    return True
+            await interaction.response.send_message(result_message, ephemeral=True)
 
-                seconds = float(parts[1])
-                if seconds <= 0:
-                    await message.channel.send("Interval must be a positive number.")
-                    return True
+        @tree.command(name="setbannerinterval", description="Set banner change interval (Boosters only)", guild=guild)
+        async def set_banner_interval(interaction: discord.Interaction, seconds: float):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can modify banner settings!", ephemeral=True)
+                return
 
-                self.banner_change_interval = seconds
-                self.config.set('banner_change_interval', seconds)
-                await message.channel.send(f"Banner change interval set to {seconds} seconds.")
-                return True
-            except ValueError:
-                await message.channel.send("Invalid interval. Please provide a valid number of seconds.")
-                return True
-            
-        return False
+            if seconds <= 0:
+                await interaction.response.send_message("Interval must be a positive number.", ephemeral=True)
+                return
+
+            self.banner_change_interval = seconds
+            self.config.set('banner_change_interval', seconds)
+            await interaction.response.send_message(f"Banner change interval set to {seconds} seconds.", ephemeral=True)

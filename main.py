@@ -50,8 +50,7 @@ class FreakBot(discord.Client):
             # Initialize managers
             self.rgb_manager = rgb_manager.RGBManager(self)
             self.banner_manager = banner_manager.BannerManager(self)
-            self.BOOSTER_ROLE_ID = int(self.config.get('booster_role_id'))
-            self.VERSION = "1.7.0"
+            self.VERSION = "1.8.0"
             
         except Exception as e:
             print(f"Error during initialization: {str(e)}")
@@ -70,7 +69,7 @@ class FreakBot(discord.Client):
                 print("Invalid command. Type 'exit' to close.")
 
     async def setup_hook(self):
-        """Set up background tasks and register commands"""
+        """Set up background tasks"""
         self.rgb_manager.start()
         self.banner_manager.start()
 
@@ -84,83 +83,11 @@ class FreakBot(discord.Client):
         if self.guilds:
             guild = self.guilds[0]
             
-            # Register commands for the guild
             try:
-                # RGB commands
-                @self.tree.command(name="rgbhelp", description="Show RGB-related commands", guild=guild)
-                async def rgb_help(interaction: discord.Interaction):
-                    help_text = """
-**RGB Role Color Commands**
-`/rgbhelp` - Show this help message
-`/setrgbinterval` - Set RGB color change interval (Boosters only)
-"""
-                    await interaction.response.send_message(help_text, ephemeral=True)
-
-                @self.tree.command(name="setrgbinterval", description="Set RGB color change interval (Boosters only)", guild=guild)
-                @app_commands.describe(seconds="The interval in seconds between color changes")
-                async def set_rgb_interval(interaction: discord.Interaction, seconds: float):
-                    if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
-                        await interaction.response.send_message("Only server boosters can modify RGB settings!", ephemeral=True)
-                        return
-
-                    if seconds <= 0:
-                        await interaction.response.send_message("Interval must be a positive number.", ephemeral=True)
-                        return
-
-                    self.rgb_manager.color_change_interval = seconds
-                    self.config.set('color_change_interval', seconds)
-                    await interaction.response.send_message(f"RGB color change interval set to {seconds} seconds.", ephemeral=True)
-
-                # Banner commands
-                @self.tree.command(name="bannerhelp", description="Show banner-related commands", guild=guild)
-                async def banner_help(interaction: discord.Interaction):
-                    help_text = """
-**Banner Management Commands**
-`/bannerhelp` - Show this help message
-`/banners` - List all saved banner images (Boosters only)
-`/changebanner` - Manually change the server banner (Boosters only)
-`/setbannerinterval` - Set banner change interval (Boosters only)
-"""
-                    await interaction.response.send_message(help_text, ephemeral=True)
-
-                @self.tree.command(name="banners", description="List saved banner images (Boosters only)", guild=guild)
-                async def list_banners(interaction: discord.Interaction):
-                    if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
-                        await interaction.response.send_message("Only server boosters can list banner images!", ephemeral=True)
-                        return
-
-                    banners = self.banner_manager.get_saved_banners()
-                    if not banners:
-                        await interaction.response.send_message("No saved banner images found.", ephemeral=True)
-                        return
-                    
-                    banner_list = "\n".join(f"{i+1}. {banner}" for i, banner in enumerate(banners))
-                    await interaction.response.send_message(f"Saved banner images:\n```\n{banner_list}\n```", ephemeral=True)
-
-                @self.tree.command(name="changebanner", description="Manually change the server banner (Boosters only)", guild=guild)
-                async def change_banner(interaction: discord.Interaction):
-                    if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
-                        await interaction.response.send_message("Only server boosters can change the banner!", ephemeral=True)
-                        return
-
-                    success, result_message = await self.banner_manager.change_banner_manually()
-                    await interaction.response.send_message(result_message, ephemeral=True)
-
-                @self.tree.command(name="setbannerinterval", description="Set banner change interval (Boosters only)", guild=guild)
-                @app_commands.describe(seconds="The interval in seconds between banner changes")
-                async def set_banner_interval(interaction: discord.Interaction, seconds: float):
-                    if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
-                        await interaction.response.send_message("Only server boosters can modify banner settings!", ephemeral=True)
-                        return
-
-                    if seconds <= 0:
-                        await interaction.response.send_message("Interval must be a positive number.", ephemeral=True)
-                        return
-
-                    self.banner_manager.banner_change_interval = seconds
-                    self.config.set('banner_change_interval', seconds)
-                    await interaction.response.send_message(f"Banner change interval set to {seconds} seconds.", ephemeral=True)
-
+                # Register commands from managers
+                self.rgb_manager.register_commands(self.tree, guild)
+                self.banner_manager.register_commands(self.tree, guild)
+                
                 # Sync commands with the guild
                 print(f"Syncing commands for guild: {guild.name}")
                 await self.tree.sync(guild=guild)
@@ -181,6 +108,15 @@ class FreakBot(discord.Client):
                 print(f"Error registering commands: {str(e)}")
                 print("\nFull error details:")
                 traceback.print_exc()
+
+    async def on_message(self, message):
+        """Handle incoming messages"""
+        if message.author.bot:
+            return
+            
+        # Handle banner image uploads
+        if await self.banner_manager.handle_message(message):
+            return
 
 if __name__ == "__main__":
     try:

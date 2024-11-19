@@ -46,7 +46,7 @@ class FreakBot(discord.Client):
             # Initialize managers
             self.rgb_manager = rgb_manager.RGBManager(self)
             self.banner_manager = banner_manager.BannerManager(self)
-            self.VERSION = "1.1.0"
+            self.VERSION = "1.3.0"
             
         except Exception as e:
             print(f"Error during initialization: {str(e)}")
@@ -122,10 +122,7 @@ if __name__ == "__main__":
             print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
             print("Please ensure your .env file exists and contains a valid token.")
             FreakBot().handle_error()
-        
-        # Print the last 4 characters of the token for debugging
-        print(f"Token loaded, last 4 characters: {token[-4:]}")
-        
+            
         client = FreakBot()
         client.run(token)
     except Exception as e:

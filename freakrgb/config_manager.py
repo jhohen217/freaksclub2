@@ -1,131 +1,55 @@
 import json
 import os
-import sys
-import traceback
-from typing import Dict, Any
-from dotenv import load_dotenv
 
 class ConfigManager:
-    def __init__(self):
-        try:
-            # Config should be in /home/freaksclub2/config.json
-            self.config_path = '/home/freaksclub2/config.json'
-            
-            # For Windows development, check current directory
-            if os.name == 'nt' and not os.path.exists(self.config_path):
-                self.config_path = 'config.json'
-            
-            # Load environment variables
-            load_dotenv()
-            self.config: Dict[str, Any] = self.load_config()
-            
-        except Exception as e:
-            print(f"\nError in ConfigManager initialization: {str(e)}")
-            print("\nFull error details:")
-            traceback.print_exc()
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+    def __init__(self, config_path=None):
+        """
+        Initialize ConfigManager with optional config path.
+        If no path is provided, it uses the default path.
+        """
+        if config_path is None:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+        
+        self.config_path = config_path
+        self.config = self._load_config()
 
-    def load_config(self) -> Dict[str, Any]:
-        """Load configuration from file and environment variables"""
+    def _load_config(self):
+        """
+        Load configuration from JSON file.
+        If file doesn't exist or is invalid, return an empty dictionary.
+        """
         try:
-            if not os.path.exists(self.config_path):
-                print(f"\nError: Config file not found at {self.config_path}")
-                print("\nPlease ensure config.json exists in one of these locations:")
-                print("1. /home/freaksclub2/config.json (for Pi)")
-                print("2. ./config.json (for local development)")
-                print("\nYou can copy config.json.example to create your config file.")
-                input("\nPress Enter to exit...")
-                sys.exit(1)
-                
-            try:
-                with open(self.config_path, 'r') as f:
-                    config = json.load(f)
-            except json.JSONDecodeError as e:
-                print(f"\nError: Invalid JSON in config file: {str(e)}")
-                print("Please check your config.json file for syntax errors.")
-                input("\nPress Enter to exit...")
-                sys.exit(1)
-            except Exception as e:
-                print(f"\nError reading config file: {str(e)}")
-                input("\nPress Enter to exit...")
-                sys.exit(1)
-            
-            # Validate required fields
-            required_fields = {
-                'rgb_role_id': "Role ID for RGB color cycling",
-                'booster_role_id': "Role ID for banner management permissions",
-                'color_change_interval': "Interval (in seconds) for RGB color changes",
-                'banner_change_interval': "Interval (in seconds) for banner changes",
-                'banner_storage_path': "Path where banner images will be stored"
-            }
-            
-            missing_fields = []
-            for field, description in required_fields.items():
-                if field not in config:
-                    missing_fields.append(f"{field} ({description})")
-            
-            if missing_fields:
-                print("\nError: Missing required configuration fields:")
-                print("- " + "\n- ".join(missing_fields))
-                print("\nPlease check config.json.example for the required format.")
-                input("\nPress Enter to exit...")
-                sys.exit(1)
-            
-            # Override token with environment variable if it exists
-            token = os.getenv('DISCORD_BOT_TOKEN')
-            if token:
-                config['token'] = token
-            
-            return config
-            
-        except Exception as e:
-            print(f"\nUnexpected error in load_config: {str(e)}")
-            print("\nFull error details:")
-            traceback.print_exc()
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+            with open(self.config_path, 'r') as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            print(f"Error loading config: {e}")
+            return {}
 
-    def get(self, key: str, default: Any = None) -> Any:
-        """Get a configuration value"""
-        try:
-            # Special handling for token
-            if key == 'token':
-                return os.getenv('DISCORD_BOT_TOKEN') or self.config.get(key, default)
-            return self.config.get(key, default)
-        except Exception as e:
-            print(f"\nError getting config value '{key}': {str(e)}")
-            print("\nFull error details:")
-            traceback.print_exc()
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+    def get(self, key, default=None):
+        """
+        Get a configuration value.
+        If the key doesn't exist, return the default value.
+        
+        Special handling for banner_change_interval to default to 3600 if not set.
+        """
+        if key == 'banner_change_interval' and key not in self.config:
+            return 3600  # Default to 1 hour
+        
+        return self.config.get(key, default)
 
-    def save(self):
-        """Save current configuration to file, excluding sensitive data"""
+    def set(self, key, value):
+        """
+        Set a configuration value and save to file.
+        """
+        self.config[key] = value
+        self._save_config()
+
+    def _save_config(self):
+        """
+        Save current configuration to JSON file.
+        """
         try:
-            save_config = self.config.copy()
-            # Don't save token to config file
-            save_config.pop('token', None)
-            
             with open(self.config_path, 'w') as f:
-                json.dump(save_config, f, indent=4)
+                json.dump(self.config, f, indent=4)
         except Exception as e:
-            print(f"\nError saving config file: {str(e)}")
-            print("\nFull error details:")
-            traceback.print_exc()
-            input("\nPress Enter to exit...")
-            sys.exit(1)
-
-    def update(self, key: str, value: Any):
-        """Update a configuration value and save"""
-        try:
-            if key == 'token':
-                raise ValueError("Token should be set in .env file, not in config")
-            self.config[key] = value
-            self.save()
-        except Exception as e:
-            print(f"\nError updating config value '{key}': {str(e)}")
-            print("\nFull error details:")
-            traceback.print_exc()
-            input("\nPress Enter to exit...")
-            sys.exit(1)
+            print(f"Error saving config: {e}")

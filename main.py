@@ -50,7 +50,7 @@ class FreakBot(discord.Client):
             # Initialize managers
             self.rgb_manager = rgb_manager.RGBManager(self)
             self.banner_manager = banner_manager.BannerManager(self)
-            self.VERSION = "1.8.0"
+            self.VERSION = "1.9.0"
             
         except Exception as e:
             print(f"Error during initialization: {str(e)}")
@@ -84,6 +84,11 @@ class FreakBot(discord.Client):
             guild = self.guilds[0]
             
             try:
+                # Clear existing commands
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
+                print("Cleared existing commands")
+                
                 # Register commands from managers
                 self.rgb_manager.register_commands(self.tree, guild)
                 self.banner_manager.register_commands(self.tree, guild)

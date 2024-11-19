@@ -7,8 +7,8 @@ import freakrgb.rgb_manager as rgb_manager
 import freakrgb.banner_manager as banner_manager
 import freakrgb.config_manager as config_manager
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from .env file in the same directory
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
 class FreakBot(discord.Client):
     def __init__(self):
@@ -109,12 +109,14 @@ class FreakBot(discord.Client):
 
 if __name__ == "__main__":
     try:
-        config_path = '/home/freaksclub2/config.json'
+        # Set the configuration path relative to the script's location
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
         if not os.path.exists(config_path):
             print(f"Error: config.json not found at {config_path}!")
             print("Please copy config.json.example to config.json and update the values.")
             FreakBot().handle_error()
             
+        # Load the Discord bot token from environment variables
         token = os.getenv('DISCORD_BOT_TOKEN')
         if not token:
             print("Error: DISCORD_BOT_TOKEN not found in environment variables!")

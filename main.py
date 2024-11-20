@@ -32,7 +32,9 @@ class FreakBot(discord.Client):
                 'booster_role_id',
                 'color_change_interval',
                 'banner_change_interval',
-                'banner_storage_path'
+                'banner_storage_path',
+                'designated_channel_id',
+                'admin_id'
             ]
             
             missing_configs = []
@@ -98,16 +100,17 @@ class FreakBot(discord.Client):
                 print("Command sync complete!")
                 
                 # Send startup message
-                for channel in guild.text_channels:
-                    if 'radio' in channel.name.lower():
-                        embed = discord.Embed(
-                            title="Bot Started",
-                            description=f"freakrgb v{self.VERSION} started!",
-                            color=discord.Color.green()
-                        )
-                        await channel.send(embed=embed)
-                        print(f"Sent startup message to channel: {channel.name}")
-                        
+                designated_channel_id = int(self.config.get('designated_channel_id'))
+                channel = self.get_channel(designated_channel_id)
+                if channel:
+                    embed = discord.Embed(
+                        title="Bot Started",
+                        description=f"freakrgb v{self.VERSION} started!",
+                        color=discord.Color.green()
+                    )
+                    await channel.send(embed=embed)
+                    print(f"Sent startup message to channel ID: {designated_channel_id}")
+                    
             except Exception as e:
                 print(f"Error registering commands: {str(e)}")
                 print("\nFull error details:")
@@ -122,26 +125,44 @@ class FreakBot(discord.Client):
         if await self.banner_manager.handle_message(message):
             return
 
-if __name__ == "__main__":
-        try:
-            # Set the configuration path relative to the script's location
-            config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-            if not os.path.exists(config_path):
-                print(f"Error: config.json not found at {config_path}!")
-                print("Please copy config.json.example to config.json and update the values.")
-                FreakBot().handle_error()
-                
-            # Load the Discord bot token from environment variables
-            token = os.getenv('DISCORD_BOT_TOKEN')
-            if not token:
-                print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
-                print("Please ensure your .env file exists and contains a valid token.")
-                FreakBot().handle_error()
-                
-            client = FreakBot()
-            client.run(token)
-        except Exception as e:
-            print(f"\nError starting bot: {str(e)}")
-            print("\nFull error details:")
+    async def on_error(self, event_method, *args, **kwargs):
+        """Handle errors globally"""
+        error_info = sys.exc_info()
+        exception = error_info[1]
+
+        if isinstance(exception, discord.HTTPException) and exception.status == 429:
+            # Rate limit encountered
+            designated_channel_id = int(self.config.get('designated_channel_id'))
+            admin_id = self.config.get('admin_id')
+            channel = self.get_channel(designated_channel_id)
+            if channel and admin_id:
+                await channel.send(f"<@{admin_id}> The bot has hit a rate limit!")
+                print(f"Rate limit hit. Notified admin ID: {admin_id} in channel ID: {designated_channel_id}")
+        else:
+            # Log other exceptions
+            print(f"An error occurred: {exception}")
             traceback.print_exc()
+
+if __name__ == "__main__":
+    try:
+        # Set the configuration path relative to the script's location
+        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+        if not os.path.exists(config_path):
+            print(f"Error: config.json not found at {config_path}!")
+            print("Please copy config.json.example to config.json and update the values.")
             FreakBot().handle_error()
+            
+        # Load the Discord bot token from environment variables
+        token = os.getenv('DISCORD_BOT_TOKEN')
+        if not token:
+            print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
+            print("Please ensure your .env file exists and contains a valid token.")
+            FreakBot().handle_error()
+            
+        client = FreakBot()
+        client.run(token)
+    except Exception as e:
+        print(f"\nError starting bot: {str(e)}")
+        print("\nFull error details:")
+        traceback.print_exc()
+        FreakBot().handle_error()

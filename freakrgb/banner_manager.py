@@ -17,6 +17,9 @@ class BannerManager:
         os.makedirs(self.banners_dir, exist_ok=True)
         self.image_paths: List[str] = []
 
+        # Load designated channel ID from config
+        self.designated_channel_id = int(self.config.get('designated_channel_id'))
+
     def start(self):
         """Start the banner cycling"""
         self.cycle_server_banner.start()
@@ -90,8 +93,8 @@ class BannerManager:
             return False, str(e)
 
     async def handle_message(self, message):
-        """Handle messages in the radio channel"""
-        if 'radio' in message.channel.name.lower():
+        """Handle messages in the designated channel"""
+        if message.channel.id == self.designated_channel_id:
             if message.attachments and self.client.user in message.mentions:
                 # Check booster role
                 if not any(role.id == self.BOOSTER_ROLE_ID for role in message.author.roles):
@@ -136,7 +139,7 @@ class BannerManager:
 
 **Adding New Banners**
 To add a new banner image:
-1. Post an image in the radio channel
+1. Post an image in the designated channel
 2. Tag the bot in your message
 3. You must have the server booster role to add images
 

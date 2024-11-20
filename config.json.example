@@ -1,7 +1,9 @@
 {
-    "rgb_role_id": "1150577684771000382",
-    "booster_role_id": "1172098000563228716",
+    "rgb_role_id": "YOUR_RGB_ROLE_ID",
+    "booster_role_id": "YOUR_BOOSTER_ROLE_ID",
     "color_change_interval": 3600,
     "banner_change_interval": 20,
-    "banner_storage_path": "/home/freaksclub2/banners"
+    "banner_storage_path": "/path/to/banners",
+    "designated_channel_id": "YOUR_DESIGNATED_CHANNEL_ID",
+    "admin_id": "YOUR_ADMIN_ID"
 }

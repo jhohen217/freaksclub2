@@ -13,9 +13,9 @@ class BannerManager:
         self.config = ConfigManager()
         self.BOOSTER_ROLE_ID = int(self.config.get('booster_role_id'))  # Convert to int for comparison
         self.banner_change_interval = self.config.get('banner_change_interval')
-        self.image_urls: List[str] = []
         self.banners_dir = self.config.get('banner_storage_path', '/home/freaksclub2/banners')
         os.makedirs(self.banners_dir, exist_ok=True)
+        self.image_paths: List[str] = []
 
     def start(self):
         """Start the banner cycling"""
@@ -41,67 +41,52 @@ class BannerManager:
         return filepath
 
     async def load_existing_images(self):
-        """Load existing images from the radio channel"""
-        for guild in self.client.guilds:
-            for channel in guild.text_channels:
-                if 'radio' in channel.name.lower():
-                    async for message in channel.history(limit=100):
-                        if message.attachments:
-                            for attachment in message.attachments:
-                                if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
-                                    self.image_urls.append(attachment.url)
-                    break
-        print(f"Loaded {len(self.image_urls)} existing banner images")
+        """Load existing images from the local storage directory"""
+        self.image_paths.clear()
+        for filename in os.listdir(self.banners_dir):
+            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                filepath = os.path.join(self.banners_dir, filename)
+                self.image_paths.append(filepath)
+        print(f"Loaded {len(self.image_paths)} existing banner images from local storage")
 
     @tasks.loop()
     async def cycle_server_banner(self):
         """Periodically change the server banner"""
         await asyncio.sleep(self.banner_change_interval)
         
-        if not self.image_urls:
+        if not self.image_paths:
             print("No images available to set as server banner")
             return
 
-        image_url = random.choice(self.image_urls)
+        image_path = random.choice(self.image_paths)
         
         try:
-            image_data = await self.download_image(image_url)
-            if image_data:
-                guild = self.client.guilds[0]
-                await guild.edit(banner=image_data)
-                print(f"Successfully changed server banner to {image_url}")
-            else:
-                print(f"Failed to download image from {image_url}")
-                self.image_urls.remove(image_url)
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            guild = self.client.guilds[0]
+            await guild.edit(banner=image_data)
+            print(f"Successfully changed server banner to {image_path}")
         except Exception as e:
             print(f"Error changing server banner: {e}")
-            if "Banner is too small" not in str(e):  # Don't remove if it's just a size issue
-                self.image_urls.remove(image_url)
-
-    def get_saved_banners(self):
-        """Get list of all saved banner images"""
-        return [f for f in os.listdir(self.banners_dir) if f.endswith(('.png', '.jpg', '.jpeg', '.gif'))]
+            # Remove the image from the list if there's an error
+            self.image_paths.remove(image_path)
 
     async def change_banner_manually(self):
         """Manually change the server banner"""
-        if not self.image_urls:
+        if not self.image_paths:
             return False, "No images available to set as server banner"
 
-        image_url = random.choice(self.image_urls)
+        image_path = random.choice(self.image_paths)
         
         try:
-            image_data = await self.download_image(image_url)
-            if image_data:
-                guild = self.client.guilds[0]
-                await guild.edit(banner=image_data)
-                return True, f"Successfully changed server banner to {image_url}"
-            else:
-                self.image_urls.remove(image_url)
-                return False, f"Failed to download image from {image_url}"
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            guild = self.client.guilds[0]
+            await guild.edit(banner=image_data)
+            return True, f"Successfully changed server banner to {image_path}"
         except Exception as e:
             print(f"Error changing server banner: {e}")
-            if "Banner is too small" not in str(e):  # Don't remove if it's just a size issue
-                self.image_urls.remove(image_url)
+            self.image_paths.remove(image_path)
             return False, str(e)
 
     async def handle_message(self, message):
@@ -118,18 +103,22 @@ class BannerManager:
 
                 for attachment in message.attachments:
                     if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
-                        self.image_urls.append(attachment.url)
                         # Download and save locally
                         image_data = await self.download_image(attachment.url)
                         if image_data:
-                            await self.save_banner_locally(image_data, attachment.filename)
+                            filepath = await self.save_banner_locally(image_data, attachment.filename)
+                            self.image_paths.append(filepath)
                             await message.channel.send(
                                 f"Banner image from {message.author.mention} has been added to the rotation!",
                                 delete_after=10
                             )
-                        print(f"Added new banner image: {attachment.url}")
+                            print(f"Added new banner image: {filepath}")
             return True
         return False
+
+    def get_saved_banners(self):
+        """Get list of all saved banner images"""
+        return [f for f in os.listdir(self.banners_dir) if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif'))]
 
     def register_commands(self, tree, guild):
         """Register banner-related slash commands"""
@@ -206,8 +195,8 @@ To add a new banner image:
             filename = banners[number - 1]
             filepath = os.path.join(self.banners_dir, filename)
             os.remove(filepath)
-            # Also remove from URLs if present
-            self.image_urls = [url for url in self.image_urls if filename not in url]
+            # Remove from image paths
+            self.image_paths.remove(filepath)
             await interaction.response.send_message(f"Banner '{filename}' has been deleted.", ephemeral=True)
 
         @tree.command(name="changebanner", description="Manually change the server banner (Boosters only)", guild=guild)

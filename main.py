@@ -86,7 +86,6 @@ class FreakBot(discord.Client):
             try:
                 # Clear existing commands
                 self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
                 print("Cleared existing commands")
                 
                 # Register commands from managers
@@ -124,25 +123,25 @@ class FreakBot(discord.Client):
             return
 
 if __name__ == "__main__":
-    try:
-        # Set the configuration path relative to the script's location
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        if not os.path.exists(config_path):
-            print(f"Error: config.json not found at {config_path}!")
-            print("Please copy config.json.example to config.json and update the values.")
+        try:
+            # Set the configuration path relative to the script's location
+            config_path = os.path.join(os.path.dirname(__file__), 'config.json')
+            if not os.path.exists(config_path):
+                print(f"Error: config.json not found at {config_path}!")
+                print("Please copy config.json.example to config.json and update the values.")
+                FreakBot().handle_error()
+                
+            # Load the Discord bot token from environment variables
+            token = os.getenv('DISCORD_BOT_TOKEN')
+            if not token:
+                print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
+                print("Please ensure your .env file exists and contains a valid token.")
+                FreakBot().handle_error()
+                
+            client = FreakBot()
+            client.run(token)
+        except Exception as e:
+            print(f"\nError starting bot: {str(e)}")
+            print("\nFull error details:")
+            traceback.print_exc()
             FreakBot().handle_error()
-            
-        # Load the Discord bot token from environment variables
-        token = os.getenv('DISCORD_BOT_TOKEN')
-        if not token:
-            print("Error: DISCORD_BOT_TOKEN not found in environment variables!")
-            print("Please ensure your .env file exists and contains a valid token.")
-            FreakBot().handle_error()
-            
-        client = FreakBot()
-        client.run(token)
-    except Exception as e:
-        print(f"\nError starting bot: {str(e)}")
-        print("\nFull error details:")
-        traceback.print_exc()
-        FreakBot().handle_error()

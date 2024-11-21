@@ -16,6 +16,7 @@ class BannerManager:
         self.banners_dir = self.config.get('banner_storage_path', '/home/freaksclub2/banners')
         os.makedirs(self.banners_dir, exist_ok=True)
         self.image_paths: List[str] = []
+        self.current_cycle: List[str] = []  # Track current cycle of images
 
         # Load designated channel ID from config
         self.designated_channel_id = int(self.config.get('designated_channel_id'))
@@ -51,6 +52,8 @@ class BannerManager:
                 filepath = os.path.join(self.banners_dir, filename)
                 self.image_paths.append(filepath)
         print(f"Loaded {len(self.image_paths)} existing banner images from local storage")
+        # Initialize current cycle with shuffled images
+        self.current_cycle = random.sample(self.image_paths, len(self.image_paths)) if self.image_paths else []
 
     @tasks.loop()
     async def cycle_server_banner(self):
@@ -61,7 +64,13 @@ class BannerManager:
             print("No images available to set as server banner")
             return
 
-        image_path = random.choice(self.image_paths)
+        # If current cycle is empty, create a new shuffled cycle
+        if not self.current_cycle:
+            self.current_cycle = random.sample(self.image_paths, len(self.image_paths))
+            print("Created new shuffled cycle of banner images")
+
+        # Get next image from current cycle
+        image_path = self.current_cycle.pop(0)
         
         try:
             with open(image_path, 'rb') as f:
@@ -71,15 +80,22 @@ class BannerManager:
             print(f"Successfully changed server banner to {image_path}")
         except Exception as e:
             print(f"Error changing server banner: {e}")
-            # Remove the image from the list if there's an error
-            self.image_paths.remove(image_path)
+            # Remove the image from both lists if there's an error
+            if image_path in self.image_paths:
+                self.image_paths.remove(image_path)
+            if image_path in self.current_cycle:
+                self.current_cycle.remove(image_path)
 
     async def change_banner_manually(self):
         """Manually change the server banner"""
         if not self.image_paths:
             return False, "No images available to set as server banner"
 
-        image_path = random.choice(self.image_paths)
+        # If current cycle is empty, create a new shuffled cycle
+        if not self.current_cycle:
+            self.current_cycle = random.sample(self.image_paths, len(self.image_paths))
+
+        image_path = self.current_cycle.pop(0)
         
         try:
             with open(image_path, 'rb') as f:
@@ -89,7 +105,10 @@ class BannerManager:
             return True, f"Successfully changed server banner to {image_path}"
         except Exception as e:
             print(f"Error changing server banner: {e}")
-            self.image_paths.remove(image_path)
+            if image_path in self.image_paths:
+                self.image_paths.remove(image_path)
+            if image_path in self.current_cycle:
+                self.current_cycle.remove(image_path)
             return False, str(e)
 
     async def handle_message(self, message):
@@ -136,6 +155,7 @@ class BannerManager:
 `/deletebanner` - Delete a specific banner image (Boosters only)
 `/changebanner` - Manually change the server banner (Boosters only)
 `/setbannerinterval` - Set banner change interval (Boosters only)
+`/refreshbanners` - Refresh the banner image list (Boosters only)
 
 **Adding New Banners**
 To add a new banner image:
@@ -146,6 +166,15 @@ To add a new banner image:
 **Note**: Banner images are stored in {0} and cycle every {1} seconds
 """.format(self.banners_dir, self.banner_change_interval)
             await interaction.response.send_message(help_text, ephemeral=True)
+
+        @tree.command(name="refreshbanners", description="Refresh the banner image list (Boosters only)", guild=guild)
+        async def refresh_banners(interaction: discord.Interaction):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can refresh banner images!", ephemeral=True)
+                return
+
+            await self.load_existing_images()
+            await interaction.response.send_message(f"Successfully refreshed banner images. Found {len(self.image_paths)} images.", ephemeral=True)
 
         @tree.command(name="banners", description="List saved banner images (Boosters only)", guild=guild)
         async def list_banners(interaction: discord.Interaction):
@@ -198,8 +227,11 @@ To add a new banner image:
             filename = banners[number - 1]
             filepath = os.path.join(self.banners_dir, filename)
             os.remove(filepath)
-            # Remove from image paths
-            self.image_paths.remove(filepath)
+            # Remove from image paths and current cycle
+            if filepath in self.image_paths:
+                self.image_paths.remove(filepath)
+            if filepath in self.current_cycle:
+                self.current_cycle.remove(filepath)
             await interaction.response.send_message(f"Banner '{filename}' has been deleted.", ephemeral=True)
 
         @tree.command(name="changebanner", description="Manually change the server banner (Boosters only)", guild=guild)

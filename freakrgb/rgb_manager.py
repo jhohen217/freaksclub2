@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks
 import asyncio
+import random
 from .config_manager import ConfigManager
 
 class RGBManager:
@@ -46,9 +47,22 @@ class RGBManager:
         """Stop the RGB cycling"""
         self.cycle_role_color.cancel()
 
+    async def rapid_cycle(self, role, current_color):
+        """Perform rapid color cycling and return to current color"""
+        total_duration = 8  # seconds
+        num_colors = len(self.colors)
+        time_per_color = total_duration / num_colors
+
+        for color in self.colors:
+            await role.edit(color=color)
+            await asyncio.sleep(time_per_color)
+        
+        # Return to current color
+        await role.edit(color=current_color)
+
     @tasks.loop()
     async def cycle_role_color(self):
-        """Cycle through colors for the specified role with rapid cycling effect"""
+        """Cycle through colors for the specified role with random rapid cycling effects"""
         if not self.client.guilds:
             return
 
@@ -56,26 +70,36 @@ class RGBManager:
         role = guild.get_role(self.ROLE_ID)
 
         if role:
-            # Perform rapid color cycling over 8 seconds
-            total_duration = 8  # seconds
-            num_colors = len(self.colors)
-            time_per_color = total_duration / num_colors
+            # Get current color
+            current_color = self.colors[self.current_color_index]
 
-            for color in self.colors:
-                await role.edit(color=color)
-                await asyncio.sleep(time_per_color)
+            # Calculate two random times during the interval for rapid cycles
+            # Use 20% to 80% of the interval to ensure spacing
+            min_time = self.color_change_interval * 0.2
+            max_time = self.color_change_interval * 0.8
+            
+            # Generate two random times ensuring they're not too close together
+            time1 = random.uniform(min_time, max_time * 0.4)  # First third
+            time2 = random.uniform(max_time * 0.6, max_time)  # Last third
 
-            # After rapid cycling, set to the next main color
-            new_color = self.colors[self.current_color_index]
-            await role.edit(color=new_color)
-            print(f"Role: {role.name} | Changed to color: R{new_color.r}, G{new_color.g}, B{new_color.b}")
+            # Wait until first random time
+            await asyncio.sleep(time1)
+            await self.rapid_cycle(role, current_color)
+
+            # Wait until second random time
+            await asyncio.sleep(time2 - time1)
+            await self.rapid_cycle(role, current_color)
+
+            # Wait for remaining time
+            await asyncio.sleep(self.color_change_interval - time2)
+
+            # Perform original rapid cycle before color change
+            await self.rapid_cycle(role, current_color)
 
             # Update the current color index and save it to config
             self.current_color_index = (self.current_color_index + 1) % len(self.colors)
             self.config.set('current_color_index', self.current_color_index)
-
-        # Wait for the specified interval before next cycle
-        await asyncio.sleep(self.color_change_interval)
+            print(f"Role: {role.name} | Changed to color: R{current_color.r}, G{current_color.g}, B{current_color.b}")
 
     def register_commands(self, tree, guild):
         """Register RGB-related slash commands"""

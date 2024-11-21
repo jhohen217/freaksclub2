@@ -22,6 +22,9 @@ class FreakBot(discord.Client):
         # Command tree for slash commands
         self.tree = app_commands.CommandTree(self)
         
+        # Flag to track if commands have been registered
+        self.commands_registered = False
+        
         # Load configuration
         try:
             self.config = config_manager.ConfigManager()
@@ -75,13 +78,11 @@ class FreakBot(discord.Client):
         self.rgb_manager.start()
         self.banner_manager.start()
 
-    async def on_ready(self):
-        """Handle bot ready event"""
-        print("Bot is connected and ready.")
-        
-        # Load existing images for banner cycling
-        await self.banner_manager.load_existing_images()
-        
+    async def register_commands(self):
+        """Register commands once"""
+        if self.commands_registered:
+            return
+            
         if self.guilds:
             guild = self.guilds[0]
             
@@ -99,22 +100,36 @@ class FreakBot(discord.Client):
                 await self.tree.sync(guild=guild)
                 print("Command sync complete!")
                 
-                # Send startup message
-                designated_channel_id = int(self.config.get('designated_channel_id'))
-                channel = self.get_channel(designated_channel_id)
-                if channel:
-                    embed = discord.Embed(
-                        title="Bot Started",
-                        description=f"freakrgb v{self.VERSION} started!",
-                        color=discord.Color.green()
-                    )
-                    await channel.send(embed=embed)
-                    print(f"Sent startup message to channel ID: {designated_channel_id}")
-                    
+                # Set flag to prevent re-registration
+                self.commands_registered = True
+                
             except Exception as e:
                 print(f"Error registering commands: {str(e)}")
                 print("\nFull error details:")
                 traceback.print_exc()
+
+    async def on_ready(self):
+        """Handle bot ready event"""
+        print("Bot is connected and ready.")
+        
+        # Load existing images for banner cycling
+        await self.banner_manager.load_existing_images()
+        
+        # Register commands only once
+        await self.register_commands()
+        
+        if self.guilds:
+            # Send startup message
+            designated_channel_id = int(self.config.get('designated_channel_id'))
+            channel = self.get_channel(designated_channel_id)
+            if channel:
+                embed = discord.Embed(
+                    title="Bot Started",
+                    description=f"freakrgb v{self.VERSION} started!",
+                    color=discord.Color.green()
+                )
+                await channel.send(embed=embed)
+                print(f"Sent startup message to channel ID: {designated_channel_id}")
 
     async def on_message(self, message):
         """Handle incoming messages"""

@@ -17,7 +17,7 @@ import discord
 from discord.ext import commands
 import rgb
 import banner
-import icon
+import icon_remote
 import browser
 
 
@@ -618,7 +618,7 @@ class BotGUI:
             # Initialize managers
             rgb_manager = rgb.RGBManager(self.bot, config_path=str(config_path))
             banner_manager = banner.BannerManager(self.bot, config_path=str(config_path))
-            icon_manager = icon.IconManager(self.bot, config_path=str(config_path))
+            icon_manager = icon_remote.IconManager(self.bot, config_path=str(config_path))
             
             # Initialize RecZone manager for OCR
             from ocr.reczone import RecZoneManager

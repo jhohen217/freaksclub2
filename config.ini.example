@@ -1,0 +1,44 @@
+[Discord]
+bot_token = YOUR_BOT_TOKEN_HERE
+server_id = YOUR_SERVER_ID
+designated_channel_id = YOUR_DESIGNATED_CHANNEL_ID
+
+[Roles]
+rgb_role_id = YOUR_RGB_ROLE_ID
+admin_role_id = YOUR_ADMIN_ROLE_ID
+booster_role_id = YOUR_BOOSTER_ROLE_ID
+
+[Timing]
+update_interval = 3600
+rapid_cycles_per_interval = 2
+
+[Commands]
+command_prefix = .
+
+[RecZone]
+reczone_read_channel_id = YOUR_RECZONE_READ_CHANNEL_ID
+reczone_write_channel_id = YOUR_RECZONE_WRITE_CHANNEL_ID
+
+[MusicBots]
+bot_user_ids = BOT_USER_ID_1, BOT_USER_ID_2
+bot_basenames = BotName1, BotName2
+music_bot_channel_id = YOUR_MUSIC_BOT_CHANNEL_ID
+
+[Storage]
+banner_storage_path = .\banners
+icon_storage_path = .\icons
+
+[Browser]
+browser_path = auto
+window_width = 1920
+window_height = 1080
+autoplay = true
+adblock_extension_path = .\ublock_extension
+
+[State]
+last_color_index = 0
+last_color_change_time = 2026-04-28T00:00:00.000000
+last_icon_change_time = 2026-04-28T00:00:00.000000
+last_banner_change_time = 2026-04-28T00:00:00.000000
+last_icon_index = 0
+last_banner_index = 0

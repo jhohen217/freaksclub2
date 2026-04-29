@@ -712,11 +712,11 @@ class BotGUI:
             print(f"Error running bot: {e}")
             self.bot_running = False
             self._save_crash_dump(e)
+            self._show_error_console(e)
 
     def _save_crash_dump(self, error):
         """Save crash dump to logs folder"""
         import traceback
-        import logging
         from datetime import datetime
         
         logs_dir = Path(__file__).parent / "logs"
@@ -731,7 +731,35 @@ class BotGUI:
             f.write("=== Full Traceback ===\n")
             traceback.print_exc(file=f)
         
-        print(f"💾 Crash dump saved to: {crash_file}")
+        print(f"Crash dump saved to: {crash_file}")
+
+    def _show_error_console(self, error):
+        """Show console window briefly for error, then minimize"""
+        import ctypes
+        import os
+        
+        # Re-enable console output temporarily
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+        
+        print("\n" + "="*50)
+        print("ERROR DETECTED")
+        print("="*50)
+        print(f"Error: {error}")
+        print("\nPress any key to close this window...")
+        print("Check logs folder for crash dump.")
+        print("="*50)
+        
+        # Get console window handle
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        user32 = ctypes.WinDLL('user32', use_last_error=True)
+        
+        SW_RESTORE = 9
+        MB_OK = 1
+        MB_ICONERROR = 0x10
+        
+        # Show message box with error
+        user32.MessageBoxW(None, f"Error: {error}\n\nCheck logs folder for crash dump.", "FreakSwim Bot Error", MB_OK | MB_ICONERROR)
     
     def stop_bot(self):
         """Stop the Discord bot"""

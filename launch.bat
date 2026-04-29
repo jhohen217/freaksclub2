@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+cls
 echo ================================
 echo FreakSwim Bot - Launcher
 echo ================================
@@ -82,8 +83,23 @@ if errorlevel 1 (
 echo Dependencies OK
 echo.
 
-REM Launch the GUI (which starts the bot internally)
-echo Starting FreakSwim Bot GUI...
-python gui.py
+REM Set up error handling - redirect stderr to temp file
+set ERROR_FILE=%TEMP%\freakswim_err_%RANDOM%.tmp
 
+REM Launch the GUI using pythonw (no console window)
+echo Starting FreakSwim Bot GUI...
+start "" pythonw gui.py
+
+REM Wait a moment for GUI to initialize
+timeout /t 2 /nobreak >nul
+
+REM Show confirmation
+echo.
+echo ================================
+echo GUI launched successfully!
+echo ================================
+echo Bot is running. Check the GUI window.
+echo Close GUI window to stop the bot.
+echo.
 popd
+exit

@@ -15,9 +15,9 @@ import configparser
 # Import bot modules
 import discord
 from discord.ext import commands
-import rgb
-import banner
-import icon_remote
+import freakrgb.rgb_manager as rgb_manager_mod
+import freakrgb.banner_manager as banner_manager_mod
+import freakrgb.avatar_manager as avatar_manager_mod
 import browser
 
 
@@ -615,10 +615,10 @@ class BotGUI:
                 help_command=None
             )
             
-            # Initialize managers
-            rgb_manager = rgb.RGBManager(self.bot, config_path=str(config_path))
-            banner_manager = banner.BannerManager(self.bot, config_path=str(config_path))
-            icon_manager = icon_remote.IconManager(self.bot, config_path=str(config_path))
+            # Initialize managers from freakrgb package
+            rgb_manager = rgb_manager_mod.RGBManager(self.bot)
+            banner_manager = banner_manager_mod.BannerManager(self.bot)
+            icon_manager = avatar_manager_mod.AvatarManager(self.bot)
             
             # Initialize RecZone manager for OCR
             from ocr.reczone import RecZoneManager
@@ -638,9 +638,10 @@ class BotGUI:
                 await ctx.send(f"✅ Bot is working! Prefix is '{COMMAND_PREFIX}'")
                 print(f"Test command executed by {ctx.author.name}")
             
-            rgb_manager.register_commands(self.bot)
-            banner_manager.register_commands(self.bot)
-            icon_manager.register_commands(self.bot)
+            rgb_manager.register_commands(self.bot.tree, self.bot.guilds[0] if self.bot.guilds else None)
+            rgb_manager.register_text_commands(self.bot)
+            banner_manager.register_commands(self.bot.tree, self.bot.guilds[0] if self.bot.guilds else None)
+            icon_manager.register_commands(self.bot.tree, self.bot.guilds[0] if self.bot.guilds else None)
             reczone_manager.register_commands(self.bot)
             browser_manager.register_commands(self.bot)
             

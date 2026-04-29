@@ -1,55 +1,71 @@
-import json
+import configparser
 import os
 
 class ConfigManager:
     def __init__(self, config_path=None):
         """
         Initialize ConfigManager with optional config path.
-        If no path is provided, it uses the default path.
+        If no path is provided, it uses config.ini from the project root.
         """
         if config_path is None:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json')
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.ini')
         
         self.config_path = config_path
-        self.config = self._load_config()
+        self.config = configparser.ConfigParser()
+        self._load_config()
 
     def _load_config(self):
         """
-        Load configuration from JSON file.
-        If file doesn't exist or is invalid, return an empty dictionary.
+        Load configuration from INI file.
+        If file doesn't exist or is invalid, return an empty config.
         """
         try:
-            with open(self.config_path, 'r') as f:
-                return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.config.read(self.config_path, encoding='utf-8')
+        except Exception as e:
             print(f"Error loading config: {e}")
-            return {}
 
     def get(self, key, default=None):
         """
-        Get a configuration value.
-        If the key doesn't exist, return the default value.
-        
-        Special handling for banner_change_interval to default to 3600 if not set.
+        Get a configuration value by key.
+        Supports dot notation for nested sections (e.g., 'Discord.bot_token').
         """
-        if key == 'banner_change_interval' and key not in self.config:
-            return 3600  # Default to 1 hour
-        
-        return self.config.get(key, default)
+        # Handle dot notation for INI sections
+        if '.' in key:
+            section, option = key.split('.', 1)
+            try:
+                value = self.config.get(section, option)
+                if value is None:
+                    return default
+                return value
+            except (configparser.NoSectionError, configparser.NoOptionError):
+                return default
+        else:
+            # Direct key access - search all sections
+            for section in self.config.sections():
+                try:
+                    value = self.config.get(section, key)
+                    if value:
+                        return value
+                except configparser.NoOptionError:
+                    continue
+            return default
 
     def set(self, key, value):
         """
-        Set a configuration value and save to file.
+        Set a configuration value.
+        Creates a State section if it doesn't exist.
         """
-        self.config[key] = value
+        if not self.config.has_section('State'):
+            self.config.add_section('State')
+        self.config.set('State', key, str(value))
         self._save_config()
 
     def _save_config(self):
         """
-        Save current configuration to JSON file.
+        Save current configuration to INI file.
         """
         try:
-            with open(self.config_path, 'w') as f:
-                json.dump(self.config, f, indent=4)
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                self.config.write(f)
         except Exception as e:
             print(f"Error saving config: {e}")

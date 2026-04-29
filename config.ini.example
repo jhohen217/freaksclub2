@@ -11,6 +11,7 @@ booster_role_id = YOUR_BOOSTER_ROLE_ID
 [Timing]
 update_interval = 3600
 rapid_cycles_per_interval = 2
+icon_change_interval = 20
 
 [Commands]
 command_prefix = .

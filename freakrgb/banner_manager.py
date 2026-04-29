@@ -11,15 +11,15 @@ class BannerManager:
     def __init__(self, client):
         self.client = client
         self.config = ConfigManager()
-        self.BOOSTER_ROLE_ID = int(self.config.get('booster_role_id'))  # Convert to int for comparison
-        self.banner_change_interval = self.config.get('banner_change_interval')
-        self.banners_dir = self.config.get('banner_storage_path', '/home/freaksclub2/banners')
+        self.BOOSTER_ROLE_ID = int(self.config.get('Roles.booster_role_id'))
+        self.banner_change_interval = int(self.config.get('Timing.banner_change_interval', 3600))
+        self.banners_dir = self.config.get('Storage.banner_storage_path', '.\\banners')
         os.makedirs(self.banners_dir, exist_ok=True)
         self.image_paths: List[str] = []
         self.current_cycle: List[str] = []  # Track current cycle of images
 
         # Load designated channel ID from config
-        self.designated_channel_id = int(self.config.get('designated_channel_id'))
+        self.designated_channel_id = int(self.config.get('Discord.designated_channel_id'))
 
     def start(self):
         """Start the banner cycling"""

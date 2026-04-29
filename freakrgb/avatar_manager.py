@@ -10,10 +10,12 @@ class AvatarManager:
     def __init__(self, client):
         self.client = client
         self.config = ConfigManager()
-        self.ICON_CHANNEL_ID = self.config.get('icon_channel_id')
-        self.ROLE_ID = self.config.get('role_id')  # Using same role ID for permissions
-        self.ICON_CHANGE_INTERVAL = self.config.get('icon_change_interval', 20)  # seconds
+        # Use RecZone channel for icons if not set separately
+        self.ICON_CHANNEL_ID = self.config.get('RecZone.reczone_read_channel_id')
+        self.ROLE_ID = self.config.get('Roles.booster_role_id')
+        self.ICON_CHANGE_INTERVAL = int(self.config.get('Timing.icon_change_interval', 20))
         self.image_urls: List[str] = []
+        self.designated_channel_id = self.config.get('Discord.designated_channel_id')
 
     def start(self):
         """Start the avatar cycling"""
@@ -90,3 +92,29 @@ class AvatarManager:
                 )
             return True
         return False
+    
+    def register_commands(self, tree, guild):
+        """Register icon-related slash commands"""
+        
+        @tree.command(name="iconhelp", description="Show icon-related commands", guild=guild)
+        async def icon_help(interaction: discord.Interaction):
+            help_text = """
+**Icon Management Commands**
+`/iconhelp` - Show this help message
+`/icons` - List all saved icon images (Boosters only)
+`/showicon` - Display a specific icon image (Boosters only)
+`/deleteicon` - Delete a specific icon image (Boosters only)
+`/changeicon` - Manually change the server icon (Boosters only)
+`/seticoninterval` - Set icon change interval (Boosters only)
+`/refreshicons` - Refresh the icon image list (Boosters only)
+            """
+            await interaction.response.send_message(help_text, ephemeral=True)
+        
+        @tree.command(name="refreshicons", description="Refresh the icon image list (Boosters only)", guild=guild)
+        async def refresh_icons(interaction: discord.Interaction):
+            if not any(role.id == self.ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can refresh icon images!", ephemeral=True)
+                return
+
+            await self.load_existing_images()
+            await interaction.response.send_message(f"Successfully refreshed icon images. Found {len(self.image_urls)} images.", ephemeral=True)

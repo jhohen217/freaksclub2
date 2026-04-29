@@ -8,9 +8,9 @@ class RGBManager:
     def __init__(self, client):
         self.client = client
         self.config = ConfigManager()
-        self.ROLE_ID = int(self.config.get('rgb_role_id'))  # Convert to int for comparison
-        self.BOOSTER_ROLE_ID = int(self.config.get('booster_role_id'))  # Booster role for permission checks
-        self.color_change_interval = self.config.get('color_change_interval')
+        self.ROLE_ID = int(self.config.get('Roles.rgb_role_id'))
+        self.BOOSTER_ROLE_ID = int(self.config.get('Roles.booster_role_id'))
+        self.color_change_interval = int(self.config.get('Timing.color_change_interval', 3600))
 
         # Color configuration
         self.colors = [
@@ -109,9 +109,34 @@ class RGBManager:
             help_text = """
 **RGB Role Color Commands**
 `/rgbhelp` - Show this help message
+`/rgb` - Change to random color (Boosters only)
+`/rgb <r> <g> <b>` - Change to specific RGB color (Boosters only)
 `/setrgbinterval` - Set RGB color change interval (Boosters only)
 """
             await interaction.response.send_message(help_text, ephemeral=True)
+
+        @tree.command(name="rgb", description="Change role color to random or specific RGB", guild=guild)
+        async def rgb_command(interaction: discord.Interaction, r: int = None, g: int = None, b: int = None):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in interaction.user.roles):
+                await interaction.response.send_message("Only server boosters can modify RGB settings!", ephemeral=True)
+                return
+            
+            guild = interaction.guild
+            role = guild.get_role(self.ROLE_ID)
+            if not role:
+                await interaction.response.send_message("RGB role not found!", ephemeral=True)
+                return
+            
+            if r is None and g is None and b is None:
+                target_color = random.choice(self.colors)
+            elif 0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255:
+                target_color = discord.Color.from_rgb(r, g, b)
+            else:
+                await interaction.response.send_message("Invalid RGB values (must be 0-255)", ephemeral=True)
+                return
+            
+            await role.edit(color=target_color)
+            await interaction.response.send_message(f"RGB color changed to ({r or random.choice(self.colors).r}, {g}, {b})", ephemeral=True)
 
         @tree.command(name="setrgbinterval", description="Set RGB color change interval (Boosters only)", guild=guild)
         async def set_rgb_interval(interaction: discord.Interaction, seconds: float):
@@ -126,3 +151,43 @@ class RGBManager:
             self.color_change_interval = seconds
             self.config.set('color_change_interval', seconds)
             await interaction.response.send_message(f"RGB color change interval set to {seconds} seconds.", ephemeral=True)
+    
+    def register_text_commands(self, bot):
+        """Register RGB-related text commands (for prefix-based commands)"""
+        import asyncio
+        
+        @bot.command(name='rgb', help='Change role color (usage: rgb OR rgb <r> <g> <b>)')
+        async def rgb_text_cmd(ctx, r: int = None, g: int = None, b: int = None):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in ctx.author.roles):
+                await ctx.send("Only server boosters can modify RGB settings!")
+                return
+            
+            role = ctx.guild.get_role(self.ROLE_ID)
+            if not role:
+                await ctx.send("RGB role not found!")
+                return
+            
+            if r is None and g is None and b is None:
+                target_color = random.choice(self.colors)
+            elif 0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255:
+                target_color = discord.Color.from_rgb(r, g, b)
+            else:
+                await ctx.send("Invalid RGB values (must be 0-255)")
+                return
+            
+            # Rapid cycle effect
+            for color in self.colors:
+                await role.edit(color=color)
+                await asyncio.sleep(0.1)
+            
+            await role.edit(color=target_color)
+            await ctx.send(f"RGB color changed!")
+
+        @bot.command(name='rgbreset', help='Reset RGB color state')
+        async def rgb_reset_cmd(ctx):
+            if not any(role.id == self.BOOSTER_ROLE_ID for role in ctx.author.roles):
+                await ctx.send("Only server boosters can reset RGB!")
+                return
+            self.current_color_index = 0
+            self.config.set('current_color_index', 0)
+            await ctx.send("RGB color state reset!")

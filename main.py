@@ -161,10 +161,42 @@ class FreakBot(discord.Client):
 if __name__ == "__main__":
     try:
         # Set the configuration path relative to the script's location
-        config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        if not os.path.exists(config_path):
-            print(f"Error: config.json not found at {config_path}!")
-            print("Please copy config.json.example to config.json and update the values.")
+        script_dir = os.path.dirname(__file__)
+        
+        # Try config.ini first (new format), then config.json (legacy)
+        config_ini = os.path.join(script_dir, 'config.ini')
+        config_json = os.path.join(script_dir, 'config.json')
+        config_example_ini = os.path.join(script_dir, 'config.ini.example')
+        config_example_json = os.path.join(script_dir, 'config.json.example')
+        
+        # Check for existing config
+        if os.path.exists(config_ini):
+            config_path = config_ini
+        elif os.path.exists(config_json):
+            config_path = config_json
+        elif os.path.exists(config_example_ini):
+            # Auto-create config.ini from example
+            print("Creating config.ini from config.ini.example...")
+            import shutil
+            shutil.copy(config_example_ini, config_ini)
+            print("✅ Created config.ini from template!")
+            print("⚠️  Please edit config.ini and add your bot token and server IDs before running again.")
+            print("\nType 'exit' to close, then edit config.ini")
+            FreakBot().handle_error()
+        elif os.path.exists(config_example_json):
+            # Auto-create config.json from example (legacy)
+            print("Creating config.json from config.json.example...")
+            import shutil
+            shutil.copy(config_example_json, config_json)
+            print("✅ Created config.json from template!")
+            print("⚠️  Please edit config.json and add your bot token and server IDs before running again.")
+            print("\nType 'exit' to close, then edit config.json")
+            FreakBot().handle_error()
+        else:
+            print("Error: No config file found!")
+            print("Expected: config.ini or config.json")
+            print("Expected template: config.ini.example or config.json.example")
+            print("\nPlease create a config file from the example template.")
             FreakBot().handle_error()
             
         # Load the Discord bot token from environment variables

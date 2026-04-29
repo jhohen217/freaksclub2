@@ -1,0 +1,130 @@
+{
+  "overall": {
+    "jimmyhimself": {
+      "display_name": "JimmyHimself",
+      "wins": 5,
+      "kills": 42,
+      "deaths": 6,
+      "assists": 21,
+      "score": 48050,
+      "playtime": 84.41,
+      "games_played": 5
+    },
+    "nuke": {
+      "display_name": "nuke",
+      "wins": 9,
+      "kills": 97,
+      "deaths": 3,
+      "assists": 60,
+      "score": 96585,
+      "playtime": 146.9,
+      "games_played": 9
+    },
+    "dill": {
+      "display_name": "Dill",
+      "wins": 7,
+      "kills": 63,
+      "deaths": 2,
+      "assists": 26,
+      "score": 71345,
+      "playtime": 139.65,
+      "games_played": 7
+    },
+    "chebday": {
+      "display_name": "Chebday",
+      "wins": 3,
+      "kills": 22,
+      "deaths": 3,
+      "assists": 14,
+      "score": 26650,
+      "playtime": 62.83,
+      "games_played": 3
+    },
+    "geriatricgaminggod": {
+      "display_name": "GeriatricGamingGod",
+      "wins": 2,
+      "kills": 15,
+      "deaths": 2,
+      "assists": 14,
+      "score": 18485,
+      "playtime": 14.33,
+      "games_played": 2
+    }
+  },
+  "duos": {
+    "jimmyhimself": {
+      "display_name": "JimmyHimself",
+      "wins": 1,
+      "kills": 10,
+      "deaths": 3,
+      "score": 7015,
+      "games_played": 1
+    },
+    "nuke": {
+      "display_name": "nuke",
+      "wins": 5,
+      "kills": 54,
+      "deaths": 2,
+      "score": 45495,
+      "games_played": 5
+    },
+    "dill": {
+      "display_name": "Dill",
+      "wins": 3,
+      "kills": 38,
+      "deaths": 1,
+      "score": 31025,
+      "games_played": 3
+    },
+    "geriatricgaminggod": {
+      "display_name": "GeriatricGamingGod",
+      "wins": 1,
+      "kills": 7,
+      "deaths": 2,
+      "score": 7515,
+      "games_played": 1
+    }
+  },
+  "squads": {
+    "dill": {
+      "display_name": "Dill",
+      "wins": 4,
+      "kills": 25,
+      "deaths": 1,
+      "score": 40320,
+      "games_played": 4
+    },
+    "chebday": {
+      "display_name": "Chebday",
+      "wins": 3,
+      "kills": 22,
+      "deaths": 3,
+      "score": 26650,
+      "games_played": 3
+    },
+    "nuke": {
+      "display_name": "nuke",
+      "wins": 4,
+      "kills": 43,
+      "deaths": 1,
+      "score": 51090,
+      "games_played": 4
+    },
+    "jimmyhimself": {
+      "display_name": "JimmyHimself",
+      "wins": 4,
+      "kills": 32,
+      "deaths": 3,
+      "score": 41035,
+      "games_played": 4
+    },
+    "geriatricgaminggod": {
+      "display_name": "GeriatricGamingGod",
+      "wins": 1,
+      "kills": 8,
+      "deaths": 0,
+      "score": 10970,
+      "games_played": 1
+    }
+  }
+}

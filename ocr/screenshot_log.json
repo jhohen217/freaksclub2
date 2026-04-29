@@ -1,0 +1,274 @@
+{
+  "1434489426326589592_1434489425987113050": {
+    "message_id": "1434489426326589592",
+    "attachment_id": "1434489425987113050",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:12:36.857678",
+    "match_time": 7.25,
+    "game_mode": "duos",
+    "players": [
+      {
+        "name": "JimmyHimself",
+        "score": 7015,
+        "kills": 10,
+        "deaths": 3,
+        "assists": 0
+      },
+      {
+        "name": "nuke",
+        "score": 7220,
+        "kills": 9,
+        "deaths": 2,
+        "assists": 3
+      }
+    ]
+  },
+  "1433651619114913937_1433651619173498890": {
+    "message_id": "1433651619114913937",
+    "attachment_id": "1433651619173498890",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:12:43.086417",
+    "match_time": 19.93,
+    "game_mode": "squads",
+    "players": [
+      {
+        "name": "Dill",
+        "score": 11665,
+        "kills": 10,
+        "deaths": 0,
+        "assists": 4
+      },
+      {
+        "name": "Chebday",
+        "score": 9990,
+        "kills": 12,
+        "deaths": 1,
+        "assists": 5
+      },
+      {
+        "name": "nuke",
+        "score": 12220,
+        "kills": 7,
+        "deaths": 0,
+        "assists": 12
+      },
+      {
+        "name": "JimmyHimself",
+        "score": 11190,
+        "kills": 11,
+        "deaths": 0,
+        "assists": 8
+      }
+    ]
+  },
+  "1433667521168408660_1433667521210224690": {
+    "message_id": "1433667521168408660",
+    "attachment_id": "1433667521210224690",
+    "filename": "image.png",
+    "processed_at": "2025-10-31T14:59:08.046745",
+    "match_time": 21.32,
+    "game_mode": "squads",
+    "players": [
+      {
+        "name": "Dill",
+        "score": 10545,
+        "kills": 5,
+        "deaths": 1,
+        "assists": 2
+      },
+      {
+        "name": "nuke",
+        "score": 12525,
+        "kills": 12,
+        "deaths": 1,
+        "assists": 5
+      },
+      {
+        "name": "Chebday",
+        "score": 10075,
+        "kills": 6,
+        "deaths": 1,
+        "assists": 6
+      },
+      {
+        "name": "JimmyHimself",
+        "score": 9690,
+        "kills": 5,
+        "deaths": 2,
+        "assists": 2
+      }
+    ]
+  },
+  "1433640040293990552_1433640039690276935": {
+    "message_id": "1433640040293990552",
+    "attachment_id": "1433640039690276935",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:12:49.343165",
+    "match_time": 21.58,
+    "game_mode": "squads",
+    "players": [
+      {
+        "name": "JimmyHimself",
+        "score": 8175,
+        "kills": 7,
+        "deaths": 1,
+        "assists": 5
+      },
+      {
+        "name": "Chebday",
+        "score": 6585,
+        "kills": 4,
+        "deaths": 1,
+        "assists": 3
+      },
+      {
+        "name": "nuke",
+        "score": 12425,
+        "kills": 15,
+        "deaths": 0,
+        "assists": 7
+      },
+      {
+        "name": "Dill",
+        "score": 7850,
+        "kills": 6,
+        "deaths": 0,
+        "assists": 3
+      }
+    ]
+  },
+  "1433594478890979393_1433594478983381034": {
+    "message_id": "1433594478890979393",
+    "attachment_id": "1433594478983381034",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:12:55.281315",
+    "match_time": 20.85,
+    "game_mode": "duos",
+    "players": [
+      {
+        "name": "nuke",
+        "score": 7590,
+        "kills": 18,
+        "deaths": 0,
+        "assists": 6
+      },
+      {
+        "name": "Dill",
+        "score": 7195,
+        "kills": 13,
+        "deaths": 1,
+        "assists": 5
+      }
+    ]
+  },
+  "1433588443849429192_1433588443568668714": {
+    "message_id": "1433588443849429192",
+    "attachment_id": "1433588443568668714",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:13:01.149535",
+    "match_time": 21.17,
+    "game_mode": "duos",
+    "players": [
+      {
+        "name": "Dill",
+        "score": 12080,
+        "kills": 9,
+        "deaths": 0,
+        "assists": 4
+      },
+      {
+        "name": "nuke",
+        "score": 12730,
+        "kills": 7,
+        "deaths": 0,
+        "assists": 8
+      }
+    ]
+  },
+  "1433349117978873866_1433349117610037248": {
+    "message_id": "1433349117978873866",
+    "attachment_id": "1433349117610037248",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T07:13:07.073808",
+    "match_time": 0.0,
+    "game_mode": "duos",
+    "players": [
+      {
+        "name": "GeriatricGamingGod",
+        "score": 7515,
+        "kills": 7,
+        "deaths": 2,
+        "assists": 9
+      },
+      {
+        "name": "nuke",
+        "score": 7760,
+        "kills": 12,
+        "deaths": 0,
+        "assists": 3
+      }
+    ]
+  },
+  "1434747532080054446_1434747531715411998": {
+    "message_id": "1434747532080054446",
+    "attachment_id": "1434747531715411998",
+    "filename": "image.png",
+    "processed_at": "2025-11-02T22:34:33.482824",
+    "match_time": 14.33,
+    "game_mode": "squads",
+    "players": [
+      {
+        "name": "GeriatricGamingGod",
+        "score": 10970,
+        "kills": 8,
+        "deaths": 0,
+        "assists": 5
+      },
+      {
+        "name": "JimmyHimself",
+        "score": 11980,
+        "kills": 9,
+        "deaths": 0,
+        "assists": 6
+      },
+      {
+        "name": "Dill",
+        "score": 10260,
+        "kills": 4,
+        "deaths": 0,
+        "assists": 6
+      },
+      {
+        "name": "nuke",
+        "score": 13920,
+        "kills": 9,
+        "deaths": 0,
+        "assists": 4
+      }
+    ]
+  },
+  "1435043057979363470_1435043057547612242": {
+    "message_id": "1435043057979363470",
+    "attachment_id": "1435043057547612242",
+    "filename": "image.png",
+    "processed_at": "2025-11-03T18:08:51.814469",
+    "match_time": 20.47,
+    "game_mode": "duos",
+    "players": [
+      {
+        "name": "Dill",
+        "score": 11750,
+        "kills": 16,
+        "deaths": 0,
+        "assists": 2
+      },
+      {
+        "name": "nuke",
+        "score": 10195,
+        "kills": 8,
+        "deaths": 0,
+        "assists": 12
+      }
+    ]
+  }
+}

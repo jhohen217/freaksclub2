@@ -711,6 +711,27 @@ class BotGUI:
         except Exception as e:
             print(f"Error running bot: {e}")
             self.bot_running = False
+            self._save_crash_dump(e)
+
+    def _save_crash_dump(self, error):
+        """Save crash dump to logs folder"""
+        import traceback
+        import logging
+        from datetime import datetime
+        
+        logs_dir = Path(__file__).parent / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        crash_file = logs_dir / f"crash_{timestamp}.log"
+        
+        with open(crash_file, 'w', encoding='utf-8') as f:
+            f.write(f"=== Crash Dump - {datetime.now().isoformat()} ===\n\n")
+            f.write(f"Error: {error}\n\n")
+            f.write("=== Full Traceback ===\n")
+            traceback.print_exc(file=f)
+        
+        print(f"💾 Crash dump saved to: {crash_file}")
     
     def stop_bot(self):
         """Stop the Discord bot"""

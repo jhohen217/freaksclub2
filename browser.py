@@ -6,260 +6,38 @@ Keeps the same browser instance and tab so Discord streams stay connected
 Supports windowed/fullscreen toggle, autoplay, and ad blocking
 """
 
-import re
 import configparser
 import asyncio
 import threading
 import time
-import json
 from pathlib import Path
+
+from browser_support.autoplay import AUTOPLAY_SCRIPT
+from browser_support.bookmarks import (
+    add_bookmark,
+    load_bookmarks,
+    remove_bookmark,
+    resolve_bookmark,
+    save_bookmarks,
+)
+from browser_support.urls import URL_PATTERN, ensure_https, is_valid_url, parse_url_with_name
 
 
 class BrowserManager:
     """Manages a browser controlled via Discord messages using Selenium"""
 
-    # URL pattern: matches http://, https://, or bare domains like youtube.com/xxx
-    URL_PATTERN = re.compile(
-        r'(?:https?://)?'  # optional http:// or https://
-        r'(?:www\.)?'      # optional www.
-        r'(?:'             # known domains/shorteners
-        r'youtube\.com|youtu\.be|spotify\.com|twitch\.tv|'
-        r'google\.com|github\.com|reddit\.com|twitter\.com|x\.com|'
-        r'instagram\.com|tiktok\.com|vimeo\.com|dailymotion\.com|'
-        r'soundcloud\.com|bandcamp\.com|apple\.com|kick\.com|'
-        r'[a-zA-Z0-9-]+\.[a-zA-Z]{2,}'  # any domain with TLD
-        r')'
-        r'(?:/[^\s]*)?'   # optional path
-    )
+    APPROVE_LINK_EMOJI = '🌐'
+    CONTROL_EMOJIS = {
+        '⬅️': 'back',
+        '➡️': 'forward',
+        '🔄': 'refresh',
+        '❌': 'close',
+        '🖥️': 'toggle_fullscreen',
+    }
 
-    # JavaScript to auto-play videos and skip ads
-    AUTOPLAY_SCRIPT = """
-    (function() {
-        // Auto-play any HTML5 video element
-        function tryAutoplay() {
-            document.querySelectorAll('video').forEach(function(v) {
-                if (v.paused) {
-                    v.play().catch(function(){});
-                }
-                v.muted = false;
-                v.volume = 1.0;
-            });
-        }
-
-        // Auto-play any HTML5 audio element (podcasts, SoundCloud, etc.)
-        function tryAutoplayAudio() {
-            document.querySelectorAll('audio').forEach(function(a) {
-                if (a.paused) {
-                    a.play().catch(function(){});
-                }
-                a.muted = false;
-                a.volume = 1.0;
-            });
-        }
-
-        // Click play buttons for non-YouTube embedded players
-        function clickEmbeddedPlayButtons() {
-            var playSelectors = [
-                // Vimeo
-                '.play-button', '.vp-controls [class*="play"]',
-                // Twitch clips / VODs
-                '[data-a-target="player-play-button"]',
-                // Dailymotion
-                '.dm-player-playButton', '.dmp_playBtn',
-                // JW Player (button icon)
-                '.jw-icon-playback',
-                // Video.js
-                '.vjs-play-control.vjs-paused',
-                // Plyr
-                '.plyr__control--overlaid',
-                // SoundCloud
-                '.playButton', '.sc-button-play',
-                // Spotify embed
-                '[data-testid="play-pause-button"]', '.encore-play-pause-button',
-                // Bandcamp
-                '.play-btn',
-                // Generic patterns used across many sites
-                '[aria-label="Play"]', '[title="Play"]',
-                'button[class*="play"]', '[class*="play-btn"]',
-                '[class*="playBtn"]', '[class*="PlayButton"]',
-                '[class*="play_button"]'
-            ];
-
-            playSelectors.forEach(function(sel) {
-                try {
-                    document.querySelectorAll(sel).forEach(function(btn) {
-                        // Only click if it looks like a paused / not-yet-started state
-                        var label = (btn.getAttribute('aria-label') || '').toLowerCase();
-                        var cls   = (btn.className || '').toLowerCase();
-                        var isPaused = label.includes('play') || cls.includes('paused') ||
-                                       cls.includes('play') || btn.tagName === 'BUTTON';
-                        if (isPaused) { btn.click(); }
-                    });
-                } catch(e) {}
-            });
-        }
-
-        // Invoke JS player APIs directly (JW Player, Video.js, Plyr)
-        function tryPlayerAPIs() {
-            // JW Player — global jwplayer() factory
-            if (window.jwplayer) {
-                try { jwplayer().play(); } catch(e) {}
-                // Also try each instance in case of multiple players
-                try {
-                    var instances = jwplayer.api ? jwplayer.api.getPlayers() : [];
-                    instances.forEach(function(p) { try { p.play(); } catch(e) {} });
-                } catch(e) {}
-            }
-
-            // Video.js — iterate every .video-js element
-            if (window.videojs) {
-                document.querySelectorAll('.video-js').forEach(function(el) {
-                    try {
-                        var player = videojs.getPlayer(el.id || el);
-                        if (player && player.paused()) { player.play(); }
-                    } catch(e) {}
-                });
-            }
-
-            // Plyr — try any .plyr container
-            if (window.Plyr) {
-                document.querySelectorAll('.plyr').forEach(function(el) {
-                    try {
-                        var p = el._plyr || new Plyr(el);
-                        if (p && p.paused) { p.play(); }
-                    } catch(e) {}
-                });
-            }
-
-            // Flowplayer
-            if (window.flowplayer) {
-                try { flowplayer().play(); } catch(e) {}
-            }
-
-            // Vimeo Player API (for pages that use the SDK)
-            if (window.Vimeo && window.Vimeo.Player) {
-                document.querySelectorAll('iframe[src*="vimeo"]').forEach(function(iframe) {
-                    try {
-                        var player = new Vimeo.Player(iframe);
-                        player.play().catch(function(){});
-                    } catch(e) {}
-                });
-            }
-        }
-
-        // Try to reach into same-origin iframes and autoplay their content
-        function tryIframeAutoplay() {
-            document.querySelectorAll('iframe').forEach(function(iframe) {
-                try {
-                    var iDoc = iframe.contentDocument || iframe.contentWindow.document;
-                    iDoc.querySelectorAll('video, audio').forEach(function(media) {
-                        if (media.paused) { media.play().catch(function(){}); }
-                        media.muted = false;
-                        media.volume = 1.0;
-                    });
-                } catch(e) {
-                    // Cross-origin iframes will throw — ignore silently
-                }
-            });
-        }
-
-        // Dismiss YouTube consent/dialog overlays
-        function dismissDialogs() {
-            // YouTube consent dialog
-            var consentBtn = document.querySelector('button[aria-label*="Reject"], button[aria-label*="Reject all"]');
-            if (consentBtn) consentBtn.click();
-
-            // YouTube cookie consent
-            var agreeBtn = document.querySelector('[aria-label*="Agree"], [aria-label*="Accept"]');
-            if (agreeBtn) agreeBtn.click();
-
-            // Generic dismiss buttons
-            var dismissBtns = document.querySelectorAll('[aria-label*="Dismiss"], [aria-label*="Close"]');
-            dismissBtns.forEach(function(btn) { btn.click(); });
-        }
-
-        // Skip YouTube ads
-        function skipAds() {
-            // Click "Skip Ad" button
-            var skipBtn = document.querySelector('.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-skip-ad-button');
-            if (skipBtn) {
-                skipBtn.click();
-                console.log('Skipped ad via skip button');
-            }
-
-            // Click "Skip" text button
-            var skipText = document.querySelector('.ytp-ad-text .ytp-ad-skip-button-text');
-            if (skipText) {
-                skipText.click();
-            }
-
-            // Speed through non-skippable ads
-            var adOverlay = document.querySelector('.ytp-ad-player-overlay, .ytp-ad-overlay-container');
-            if (adOverlay) {
-                var video = document.querySelector('video');
-                if (video && !video.paused) {
-                    video.playbackRate = 16;
-                    video.muted = true;
-                    console.log('Speeding through ad at 16x');
-                }
-            }
-
-            // Close ad overlays/banners
-            var adClose = document.querySelector('.ytp-ad-overlay-close-button, .ytp-ad-ui-close-button');
-            if (adClose) adClose.click();
-
-            // Remove ad containers
-            var adCompanions = document.querySelectorAll('.ytp-ad-companion, .video-ads, .ytp-ad-module');
-            adCompanions.forEach(function(el) { el.style.display = 'none'; });
-        }
-
-        // Full autoplay sweep: HTML5 media + embedded players + player APIs
-        function fullAutoplaySweep() {
-            tryAutoplay();
-            tryAutoplayAudio();
-            clickEmbeddedPlayButtons();
-            tryPlayerAPIs();
-            tryIframeAutoplay();
-            skipAds();
-        }
-
-        // Run immediately
-        fullAutoplaySweep();
-        dismissDialogs();
-
-        // MutationObserver: catch players that load after the initial page render
-        // (e.g. lazy-loaded iframes, SPA route changes, dynamic video inserts)
-        var _autoplayObserver = new MutationObserver(function(mutations) {
-            var hasNewMedia = mutations.some(function(m) {
-                return Array.from(m.addedNodes).some(function(node) {
-                    if (node.nodeType !== 1) return false;
-                    return node.tagName === 'VIDEO' || node.tagName === 'AUDIO' ||
-                           node.tagName === 'IFRAME' ||
-                           node.querySelector && (
-                               node.querySelector('video, audio, iframe') ||
-                               node.querySelector('[class*="player"], [class*="Player"]')
-                           );
-                });
-            });
-            if (hasNewMedia) {
-                setTimeout(fullAutoplaySweep, 500);
-            }
-        });
-        _autoplayObserver.observe(document.body, { childList: true, subtree: true });
-
-        // Periodic polling to catch anything the observer missed
-        setInterval(function() {
-            tryAutoplay();
-            tryAutoplayAudio();
-            skipAds();
-        }, 1000);
-
-        // Delayed sweeps for slow-loading players (Vimeo, Twitch, etc.)
-        setTimeout(function() { fullAutoplaySweep(); dismissDialogs(); }, 2000);
-        setTimeout(function() { fullAutoplaySweep(); dismissDialogs(); }, 5000);
-        setTimeout(function() { fullAutoplaySweep(); },                  10000);
-    })();
-    """
+    # Compatibility aliases for code/tests that may access these constants on the class.
+    URL_PATTERN = URL_PATTERN
+    AUTOPLAY_SCRIPT = AUTOPLAY_SCRIPT
 
     def __init__(self, client, config_path='config.ini'):
         """
@@ -306,39 +84,35 @@ class BrowserManager:
         self.current_url = None
         self.is_fullscreen = False
         self._browser_lock = threading.Lock()
+        self.pending_links = {}  # {message_id: {url, bookmark_name, channel_id}}
+        self.approved_links = {}  # {message_id: {url, channel_id}} links that can be reopened via 🌐
+        self.control_message_ids = set()
+        self._processing_links = set()   # guard against double-open on rapid emoji clicks
+        self._active_message_id = None   # message ID of the currently-open browser session
+        self._last_interaction_time = None  # time.time() of last browser interaction
+        self._nav_count = 0              # number of pages navigated (for back eligibility)
+        self._backed_steps = 0           # number of back steps taken (for forward eligibility)
+        self._loop = None                # asyncio loop used for Discord cleanup callbacks
 
         # Load bookmarks
         self.bookmarks = self._load_bookmarks()
+
+        # Start idle watchdog (closes browser after 3 h of no interaction)
+        self._idle_watchdog_thread = threading.Thread(
+            target=self._idle_watchdog, daemon=True
+        )
+        self._idle_watchdog_thread.start()
 
         print(f"BrowserManager initialized (channel: {self.designated_channel_id})")
         print(f"[Browser] Loaded {len(self.bookmarks)} bookmarks")
 
     def _ensure_https(self, url):
-        """
-        Ensure URL has https:// prefix
-
-        Args:
-            url: URL string
-
-        Returns:
-            str: URL with https:// prefix
-        """
-        if url.startswith('http://') or url.startswith('https://'):
-            return url
-        return 'https://' + url
+        """Ensure URL has https:// prefix."""
+        return ensure_https(url)
 
     def _is_valid_url(self, url):
-        """
-        Check if the URL looks valid (has a dot in the domain)
-
-        Args:
-            url: URL string
-
-        Returns:
-            bool: True if URL appears valid
-        """
-        cleaned = url.replace('https://', '').replace('http://', '').replace('www.', '')
-        return '.' in cleaned.split('/')[0]
+        """Check if the URL looks valid."""
+        return is_valid_url(url)
 
     def _inject_scripts(self):
         """Inject autoplay and ad-skip scripts into the current page"""
@@ -380,6 +154,134 @@ class BrowserManager:
             self._press_spacebar()
         t = threading.Thread(target=_delayed, daemon=True)
         t.start()
+
+    def _idle_watchdog(self):
+        """
+        Background thread: auto-close the browser after 3 hours of no interaction.
+        Checks every 5 minutes.
+        """
+        idle_timeout = 3 * 3600  # 3 hours in seconds
+        check_interval = 5 * 60  # 5 minutes
+        while True:
+            time.sleep(check_interval)
+            try:
+                if self.driver is not None and self._last_interaction_time is not None:
+                    idle_seconds = time.time() - self._last_interaction_time
+                    if idle_seconds >= idle_timeout:
+                        print(
+                            f"[Browser] Idle for {idle_seconds / 3600:.1f} h — auto-closing browser"
+                        )
+                        if self._close_sync():
+                            self._schedule_browser_control_cleanup()
+            except Exception as e:
+                print(f"[Browser] Idle watchdog error: {e}")
+
+    def _touch_interaction(self):
+        """Record the current time as the last browser interaction timestamp."""
+        self._last_interaction_time = time.time()
+
+    def _remember_loop(self):
+        """Remember the running asyncio loop so background threads can schedule cleanup."""
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            pass
+
+    def _is_browser_alive_sync(self):
+        """Return True only when Selenium still has a live browser window."""
+        if self.driver is None:
+            return False
+
+        try:
+            # Accessing window_handles forces Selenium to contact the browser. If the
+            # user closed the browser manually, this raises or returns no handles.
+            return bool(self.driver.window_handles)
+        except Exception:
+            return False
+
+    def _reset_browser_state(self):
+        """Reset internal state after the browser becomes unavailable."""
+        self.driver = None
+        self.current_url = None
+        self.is_fullscreen = False
+        self._active_message_id = None
+        self._last_interaction_time = None
+        self._nav_count = 0
+        self._backed_steps = 0
+
+    async def _ensure_browser_available(self):
+        """Detect externally-closed browsers and remove stale Discord controls."""
+        self._remember_loop()
+        if self.driver is None:
+            await self._cleanup_browser_controls()
+            return False
+
+        loop = asyncio.get_event_loop()
+        alive = await loop.run_in_executor(None, self._is_browser_alive_sync)
+        if alive:
+            return True
+
+        print("[Browser] Browser is no longer available — cleaning up stale controls")
+        self._reset_browser_state()
+        await self._cleanup_browser_controls()
+        return False
+
+    async def _remove_reactions_by_emoji(self, message, emojis):
+        """Remove all reactions for the supplied emojis from a Discord message."""
+        for emoji in emojis:
+            try:
+                await message.clear_reaction(emoji)
+            except Exception:
+                # Fallback for limited permissions: remove only the bot's reaction.
+                try:
+                    if self.client.user:
+                        await message.remove_reaction(emoji, self.client.user)
+                except Exception as e:
+                    print(f"[Browser] Could not remove stale reaction {emoji}: {e}")
+
+    async def _cleanup_browser_controls(self, message_id=None, channel_id=None):
+        """Remove browser approval/control/status reactions that are no longer available."""
+        self._remember_loop()
+
+        ids_to_cleanup = set(self.control_message_ids)
+        if self._active_message_id:
+            ids_to_cleanup.add(self._active_message_id)
+        if message_id:
+            ids_to_cleanup.add(message_id)
+
+        if not ids_to_cleanup:
+            return
+
+        # Remove only unavailable browser controls/status. Keep 🌐 so the same
+        # message can be clicked again to reopen the link after the browser closes.
+        emojis = list(self.CONTROL_EMOJIS.keys()) + ['✅']
+        channel = self.client.get_channel(channel_id or self.designated_channel_id)
+        if not channel:
+            try:
+                channel = await self.client.fetch_channel(channel_id or self.designated_channel_id)
+            except Exception as e:
+                print(f"[Browser] Could not fetch channel for stale control cleanup: {e}")
+                return
+
+        for msg_id in list(ids_to_cleanup):
+            try:
+                message = await channel.fetch_message(msg_id)
+            except Exception as e:
+                print(f"[Browser] Could not fetch control message {msg_id} for cleanup: {e}")
+                self.control_message_ids.discard(msg_id)
+                continue
+
+            await self._remove_reactions_by_emoji(message, emojis)
+            self.control_message_ids.discard(msg_id)
+
+    def _schedule_browser_control_cleanup(self):
+        """Schedule stale control cleanup from non-async contexts such as watchdog threads."""
+        if not self._loop or not self._loop.is_running():
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(self._cleanup_browser_controls(), self._loop)
+        except Exception as e:
+            print(f"[Browser] Could not schedule stale control cleanup: {e}")
 
     def _launch_browser_sync(self, url):
         """
@@ -437,6 +339,9 @@ class BrowserManager:
 
             self.current_url = url
             self.is_fullscreen = False
+            self._touch_interaction()
+            self._nav_count += 1
+            self._backed_steps = 0  # new launch clears forward history
 
             # Inject autoplay and ad-skip scripts after page loads
             self._inject_scripts_delayed()
@@ -466,6 +371,9 @@ class BrowserManager:
         try:
             self.driver.get(url)
             self.current_url = url
+            self._touch_interaction()
+            self._nav_count += 1
+            self._backed_steps = 0  # new navigation clears forward history
 
             # Inject autoplay and ad-skip scripts after page loads
             self._inject_scripts_delayed()
@@ -497,12 +405,49 @@ class BrowserManager:
 
         try:
             self.driver.refresh()
+            self._touch_interaction()
             # Re-inject scripts after refresh
             self._inject_scripts_delayed()
             print("Browser refreshed")
             return True
         except Exception as e:
             print(f"Error refreshing browser: {e}")
+            return False
+
+    def _back_sync(self):
+        """Navigate browser history backward."""
+        if self.driver is None:
+            print("No browser is currently open")
+            return False
+
+        try:
+            self.driver.back()
+            self.current_url = self.driver.current_url
+            self._touch_interaction()
+            self._backed_steps += 1
+            self._inject_scripts_delayed()
+            print("Browser went back")
+            return True
+        except Exception as e:
+            print(f"Error going back: {e}")
+            return False
+
+    def _forward_sync(self):
+        """Navigate browser history forward."""
+        if self.driver is None:
+            print("No browser is currently open")
+            return False
+
+        try:
+            self.driver.forward()
+            self.current_url = self.driver.current_url
+            self._touch_interaction()
+            self._backed_steps = max(0, self._backed_steps - 1)
+            self._inject_scripts_delayed()
+            print("Browser went forward")
+            return True
+        except Exception as e:
+            print(f"Error going forward: {e}")
             return False
 
     def _close_sync(self):
@@ -518,16 +463,12 @@ class BrowserManager:
 
         try:
             self.driver.quit()
-            self.driver = None
-            self.current_url = None
-            self.is_fullscreen = False
+            self._reset_browser_state()
             print("Browser closed")
             return True
         except Exception as e:
             print(f"Error closing browser: {e}")
-            self.driver = None
-            self.current_url = None
-            self.is_fullscreen = False
+            self._reset_browser_state()
             return False
 
     def _toggle_fullscreen_sync(self):
@@ -588,6 +529,7 @@ class BrowserManager:
         Returns:
             bool: True if launched successfully
         """
+        self._remember_loop()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._launch_browser_sync, url)
 
@@ -601,6 +543,7 @@ class BrowserManager:
         Returns:
             bool: True if navigated successfully
         """
+        self._remember_loop()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._navigate_sync, url)
 
@@ -611,8 +554,12 @@ class BrowserManager:
         Returns:
             bool: True if closed successfully
         """
+        self._remember_loop()
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._close_sync)
+        success = await loop.run_in_executor(None, self._close_sync)
+        if success:
+            await self._cleanup_browser_controls()
+        return success
 
     async def refresh_browser(self):
         """
@@ -623,6 +570,16 @@ class BrowserManager:
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._refresh_sync)
+
+    async def back_browser(self):
+        """Go back in browser history (async wrapper)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._back_sync)
+
+    async def forward_browser(self):
+        """Go forward in browser history (async wrapper)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._forward_sync)
 
     async def toggle_fullscreen(self):
         """
@@ -645,44 +602,24 @@ class BrowserManager:
         return await loop.run_in_executor(None, self._minimize_sync)
 
     def _load_bookmarks(self):
-        """Load bookmarks from JSON file"""
-        try:
-            if self.bookmarks_file.exists():
-                with open(self.bookmarks_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception as e:
-            print(f"[Browser] Error loading bookmarks: {e}")
-        return {}
+        """Load bookmarks from JSON file."""
+        return load_bookmarks(self.bookmarks_file)
 
     def _save_bookmarks(self):
-        """Save bookmarks to JSON file"""
-        try:
-            with open(self.bookmarks_file, 'w', encoding='utf-8') as f:
-                json.dump(self.bookmarks, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"[Browser] Error saving bookmarks: {e}")
+        """Save bookmarks to JSON file."""
+        save_bookmarks(self.bookmarks_file, self.bookmarks)
 
     def _add_bookmark(self, name, url):
-        """Add a bookmark"""
-        name = name.lower().strip()
-        self.bookmarks[name] = url
-        self._save_bookmarks()
-        print(f"[Browser] Bookmark added: {name} -> {url}")
+        """Add a bookmark."""
+        add_bookmark(self.bookmarks_file, self.bookmarks, name, url)
 
     def _remove_bookmark(self, name):
-        """Remove a bookmark"""
-        name = name.lower().strip()
-        if name in self.bookmarks:
-            del self.bookmarks[name]
-            self._save_bookmarks()
-            print(f"[Browser] Bookmark removed: {name}")
-            return True
-        return False
+        """Remove a bookmark."""
+        return remove_bookmark(self.bookmarks_file, self.bookmarks, name)
 
     def _resolve_bookmark(self, content):
-        """Check if content matches a bookmark name and return the URL"""
-        name = content.lower().strip()
-        return self.bookmarks.get(name)
+        """Check if content matches a bookmark name and return the URL."""
+        return resolve_bookmark(self.bookmarks, content)
 
     def _has_admin_role(self, user_roles):
         """
@@ -696,6 +633,195 @@ class BrowserManager:
         """
         return any(role.id == self.admin_role_id for role in user_roles)
 
+    async def _add_browser_controls(self, message):
+        """
+        Add applicable browser control reactions to a Discord message.
+
+        Only adds emojis that make sense given the current browser state:
+          ⬅️  Back        — only if there is history to go back to (_nav_count >= 1)
+          ➡️  Forward     — only if the user has gone back at least once (_backed_steps > 0)
+          🔄  Refresh     — always (browser is open)
+          ❌  Close       — always (browser is open)
+          🖥️  Fullscreen  — always (browser is open)
+        """
+        self.control_message_ids.add(message.id)
+
+        for emoji, action in self.CONTROL_EMOJIS.items():
+            # Determine whether this control is currently applicable
+            if action == 'back' and self._nav_count < 1:
+                continue   # no history yet — skip back arrow
+            if action == 'forward' and self._backed_steps <= 0:
+                continue   # haven't gone back — skip forward arrow
+
+            try:
+                await message.add_reaction(emoji)
+            except Exception as e:
+                print(f"[Browser] Could not add control {emoji}: {e}")
+
+    async def _open_approved_link(self, message_id, actor=None):
+        """Open a pending link after approval by an authorized role."""
+        # Guard: prevent multiple simultaneous opens for the same message
+        if message_id in self._processing_links:
+            print(f"[Browser] Link {message_id} is already being processed — ignoring duplicate reaction")
+            return False
+        self._processing_links.add(message_id)
+
+        try:
+            pending = self.pending_links.get(message_id) or self.approved_links.get(message_id)
+            if not pending:
+                return False
+
+            url = pending['url']
+            bookmark_name = pending.get('bookmark_name')
+            channel_id = pending.get('channel_id')
+
+            if bookmark_name:
+                self._add_bookmark(bookmark_name, url)
+
+            if self.driver is not None:
+                success = await self.navigate_browser(url)
+                action = "Navigated to"
+            else:
+                success = await self.launch_browser(url)
+                action = "Launched browser with"
+
+            channel = self.client.get_channel(channel_id) if channel_id else None
+            if channel:
+                try:
+                    message = await channel.fetch_message(message_id)
+                    if success:
+                        await self._add_browser_controls(message)
+                    else:
+                        await message.add_reaction('❌')
+                except Exception as e:
+                    print(f"[Browser] Could not update approved link message: {e}")
+
+            if success:
+                self.pending_links.pop(message_id, None)
+                self.approved_links[message_id] = {
+                    'url': url,
+                    'channel_id': channel_id,
+                }
+                self._active_message_id = message_id
+                actor_name = getattr(actor, 'display_name', 'approved user') if actor else 'approved user'
+                print(f"[Browser] {action}: {url} (approved by {actor_name})")
+            else:
+                print(f"[Browser] Failed to open approved link: {url}")
+            return success
+        finally:
+            self._processing_links.discard(message_id)
+
+    async def _run_browser_control(self, emoji, actor=None):
+        """Run a browser action mapped to a reaction emoji."""
+        action = self.CONTROL_EMOJIS.get(emoji)
+        if not action:
+            return False
+
+        if not await self._ensure_browser_available():
+            actor_name = getattr(actor, 'display_name', 'approved user') if actor else 'approved user'
+            print(f"[Browser] Ignored stale control {emoji} from {actor_name}; browser is closed")
+            return True
+
+        if action == 'back':
+            success = await self.back_browser()
+        elif action == 'forward':
+            success = await self.forward_browser()
+        elif action == 'refresh':
+            success = await self.refresh_browser()
+        elif action == 'close':
+            success = await self.close_browser()
+        elif action == 'toggle_fullscreen':
+            success, _ = await self.toggle_fullscreen()
+        else:
+            return False
+
+        # Touch interaction time for all control actions (except close which resets it)
+        if success and action != 'close':
+            self._touch_interaction()
+
+        actor_name = getattr(actor, 'display_name', 'approved user') if actor else 'approved user'
+        print(f"[Browser] Reaction control {emoji} -> {action} by {actor_name}: {'ok' if success else 'failed'}")
+        return True
+
+    async def _delete_message(self, message):
+        """Delete a Discord message if possible."""
+        try:
+            await message.delete()
+            print(f"[Browser] Deleted caller message {message.id}")
+            return True
+        except Exception as e:
+            print(f"[Browser] Could not delete caller message {getattr(message, 'id', 'unknown')}: {e}")
+            return False
+
+    async def _delete_message_by_id(self, channel_id, message_id):
+        """Fetch and delete a Discord message by channel/message ID."""
+        channel = self.client.get_channel(channel_id)
+        if not channel:
+            try:
+                channel = await self.client.fetch_channel(channel_id)
+            except Exception as e:
+                print(f"[Browser] Could not fetch channel {channel_id} for deletion: {e}")
+                return False
+
+        try:
+            message = await channel.fetch_message(message_id)
+        except Exception as e:
+            print(f"[Browser] Could not fetch caller message {message_id}: {e}")
+            return False
+
+        return await self._delete_message(message)
+
+    async def handle_raw_reaction(self, payload, added=True):
+        """
+        Handle browser approval/control reactions.
+
+        Only reaction-add events are allowed to trigger browser actions. Reaction
+        removals are ignored so lowering/removing an emoji count cannot open or
+        control the browser.
+        """
+        if not added:
+            return False
+
+        if payload.channel_id != self.designated_channel_id:
+            return False
+
+        if self.client.user and payload.user_id == self.client.user.id:
+            return False
+
+        emoji = str(payload.emoji)
+        if emoji != self.APPROVE_LINK_EMOJI and emoji not in self.CONTROL_EMOJIS:
+            return False
+
+        guild = self.client.get_guild(payload.guild_id) if payload.guild_id else None
+        if not guild:
+            return False
+
+        member = payload.member if added and getattr(payload, 'member', None) else guild.get_member(payload.user_id)
+        if member is None:
+            try:
+                member = await guild.fetch_member(payload.user_id)
+            except Exception as e:
+                print(f"[Browser] Could not fetch reaction member {payload.user_id}: {e}")
+                return False
+
+        if not self._has_admin_role(member.roles):
+            return False
+
+        if emoji == self.APPROVE_LINK_EMOJI and (
+            payload.message_id in self.pending_links
+            or payload.message_id in self.approved_links
+        ):
+            return await self._open_approved_link(payload.message_id, member)
+
+        if emoji in self.CONTROL_EMOJIS and payload.message_id in self.control_message_ids:
+            handled = await self._run_browser_control(emoji, member)
+            if handled and self.CONTROL_EMOJIS.get(emoji) == 'close':
+                await self._delete_message_by_id(payload.channel_id, payload.message_id)
+                self.control_message_ids.discard(payload.message_id)
+            return handled
+
+        return False
+
     def parse_url_with_name(self, content):
         """
         Parse a URL and optional bookmark name from message content.
@@ -706,25 +832,7 @@ class BrowserManager:
         Returns:
             tuple: (url, bookmark_name) where bookmark_name is None if not provided
         """
-        content = content.strip()
-
-        # Skip messages that are just commands
-        if content.lower() in ('refresh', 'close', 'full', 'max', 'fullscreen', 'min',
-                                'bookmarks', 'bm'):
-            return None, None
-
-        # Try to find a URL
-        match = self.URL_PATTERN.search(content)
-        if match:
-            url = match.group(0)
-            if self._is_valid_url(url):
-                url = self._ensure_https(url)
-                # Check for bookmark name after the URL
-                after_url = content[match.end():].strip()
-                bookmark_name = after_url if after_url else None
-                return url, bookmark_name
-
-        return None, None
+        return parse_url_with_name(content)
 
     async def process_message(self, message):
         """
@@ -744,15 +852,17 @@ class BrowserManager:
         if message.author.bot:
             return False
 
-        # Check admin role
-        if not self._has_admin_role(message.author.roles):
-            return False
-
         content = message.content.strip()
         content_lower = content.lower()
 
+        # Ignore messages containing ! because they are usually commands for other bots
+        if '!' in content:
+            return False
+
         # Handle 'bookmarks' / 'bm' command - list all bookmarks
         if content_lower in ('bookmarks', 'bm'):
+            if not self._has_admin_role(message.author.roles):
+                return False
             if self.bookmarks:
                 lines = ["📑 **Bookmarks:**"]
                 for name, url in sorted(self.bookmarks.items()):
@@ -765,6 +875,8 @@ class BrowserManager:
 
         # Handle 'del <name>' command - delete a bookmark
         if content_lower.startswith('del '):
+            if not self._has_admin_role(message.author.roles):
+                return False
             name = content[4:].strip()
             if name:
                 removed = self._remove_bookmark(name)
@@ -778,6 +890,8 @@ class BrowserManager:
 
         # Handle 'refresh' command
         if content_lower == 'refresh':
+            if not self._has_admin_role(message.author.roles):
+                return False
             success = await self.refresh_browser()
             if success:
                 await message.add_reaction('🔄')
@@ -789,9 +903,11 @@ class BrowserManager:
 
         # Handle 'close' command
         if content_lower == 'close':
+            if not self._has_admin_role(message.author.roles):
+                return False
             success = await self.close_browser()
             if success:
-                await message.add_reaction('✅')
+                await self._delete_message(message)
                 print("[Browser] Closed browser")
             else:
                 await message.add_reaction('❌')
@@ -800,6 +916,8 @@ class BrowserManager:
 
         # Handle 'full' / 'max' / 'fullscreen' - toggle fullscreen on/off
         if content_lower in ('full', 'max', 'fullscreen'):
+            if not self._has_admin_role(message.author.roles):
+                return False
             success, new_state = await self.toggle_fullscreen()
             if success:
                 if new_state == 'fullscreen':
@@ -815,6 +933,8 @@ class BrowserManager:
 
         # Handle 'min' - restore to windowed mode (show title bar + X button)
         if content_lower == 'min':
+            if not self._has_admin_role(message.author.roles):
+                return False
             success = await self.minimize_browser()
             if success:
                 await message.add_reaction('🔳')
@@ -828,36 +948,23 @@ class BrowserManager:
         url, bookmark_name = self.parse_url_with_name(content)
         if url:
             # Save as bookmark if name was provided
-            if bookmark_name:
-                self._add_bookmark(bookmark_name, url)
-
-            if self.driver is not None:
-                # Browser already open, navigate same tab to new URL
-                success = await self.navigate_browser(url)
-                if success:
-                    await message.add_reaction('🌐')
-                    if bookmark_name:
-                        await message.add_reaction('🔖')
-                    print(f"[Browser] Navigated to: {url}" + (f" (saved as '{bookmark_name}')" if bookmark_name else ""))
-                else:
-                    await message.add_reaction('❌')
-                    print(f"[Browser] Failed to navigate to: {url}")
-            else:
-                # No browser open, launch new one
-                success = await self.launch_browser(url)
-                if success:
-                    await message.add_reaction('🌐')
-                    if bookmark_name:
-                        await message.add_reaction('🔖')
-                    print(f"[Browser] Launched browser with: {url}" + (f" (saved as '{bookmark_name}')" if bookmark_name else ""))
-                else:
-                    await message.add_reaction('❌')
-                    print(f"[Browser] Failed to launch browser with: {url}")
+            self.pending_links[message.id] = {
+                'url': url,
+                'bookmark_name': bookmark_name,
+                'channel_id': message.channel.id,
+            }
+            await message.add_reaction(self.APPROVE_LINK_EMOJI)
+            print(
+                f"[Browser] Link pending approval: {url}"
+                + (f" (bookmark: '{bookmark_name}')" if bookmark_name else "")
+            )
             return True
 
         # Check if the message matches a bookmark name
         bookmark_url = self._resolve_bookmark(content)
         if bookmark_url:
+            if not self._has_admin_role(message.author.roles):
+                return False
             if self.driver is not None:
                 success = await self.navigate_browser(bookmark_url)
                 if success:
@@ -875,6 +982,26 @@ class BrowserManager:
             return True
 
         return False
+
+    async def handle_message_delete(self, message):
+        """
+        Handle Discord message deletion.
+        If the deleted message is the active browser session's source message,
+        auto-close the browser.
+
+        Args:
+            message: Discord message object (may have limited data after deletion)
+        """
+        msg_id = message.id
+        # Close browser if the controlling message was deleted
+        if msg_id == self._active_message_id or msg_id in self.control_message_ids:
+            if self.driver is not None:
+                print(f"[Browser] Controlling message {msg_id} was deleted — auto-closing browser")
+                await self.close_browser()
+            # Clean up tracking sets
+            self.control_message_ids.discard(msg_id)
+            if self._active_message_id == msg_id:
+                self._active_message_id = None
 
     def register_commands(self, bot):
         """Register browser-related commands (no prefix commands needed - raw parsing only)"""

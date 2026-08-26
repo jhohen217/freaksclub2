@@ -1,12 +1,12 @@
 # Startup Scan Feature
 
 ## Overview
-The bot now automatically scans for missed screenshots when it starts up. This ensures that any screenshots posted while the bot was offline are caught and processed.
+The bot can scan for missed screenshots when it starts up. This is disabled by default and can be enabled with the **Parse missed BF wins on startup** toggle in the GUI.
 
 ## How It Works
 
-### 1. Automatic Startup Scan
-When the bot starts (in `on_ready()` event), it automatically calls `scan_missed_messages()` to catch up on any missed screenshots.
+### 1. Optional Startup Scan
+When enabled, the bot calls `scan_missed_messages()` from the `on_ready()` event to catch up on any missed screenshots.
 
 ### 2. Smart Scanning Algorithm
 The scan works backward through message history and:
@@ -23,7 +23,13 @@ The system uses a robust tracking mechanism:
 - This prevents double-counting stats even if the scan runs multiple times
 
 ### 4. Configuration
-In `main.py`, the scan is configured with:
+The GUI saves the setting in `config.ini`:
+```ini
+[RecZone]
+parse_wins_on_startup = false
+```
+
+When enabled, `gui.py` starts the scan with:
 ```python
 await reczone_manager.scan_missed_messages(max_messages=100)
 ```
@@ -70,7 +76,7 @@ When missed screenshots are found and processed, the bot sends a notification to
 
 ### Files Modified
 - `ocr/reczone.py`: Added `scan_missed_messages()` method
-- `main.py`: Added startup scan call in `on_ready()` event
+- `gui.py`: Added the saved startup-scan toggle and conditional call in `on_ready()`
 
 ### Key Methods
 - `scan_missed_messages(max_messages)`: Main scanning logic

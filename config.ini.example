@@ -19,6 +19,7 @@ command_prefix = .
 [RecZone]
 reczone_read_channel_id = YOUR_RECZONE_READ_CHANNEL_ID
 reczone_write_channel_id = YOUR_RECZONE_WRITE_CHANNEL_ID
+parse_wins_on_startup = false
 
 [MusicBots]
 bot_user_ids = BOT_USER_ID_1, BOT_USER_ID_2

@@ -75,6 +75,7 @@ class BotGUI:
         self.bot_thread = None
         self.bot_running = False
         self.config = None
+        self.parse_wins_on_startup = tk.BooleanVar(value=False)
         
         # Queue for console output
         self.console_queue = queue.Queue()
@@ -103,6 +104,13 @@ class BotGUI:
             config_path = application_path / "config.ini"
             self.config = configparser.ConfigParser()
             self.config.read(config_path, encoding='utf-8')
+            self.parse_wins_on_startup.set(
+                self.config.getboolean(
+                    'RecZone',
+                    'parse_wins_on_startup',
+                    fallback=False
+                )
+            )
             self.log_message("✓ Configuration loaded successfully", self.success_color)
         except Exception as e:
             self.log_message(f"✗ Error loading config: {e}", self.error_color)
@@ -399,6 +407,22 @@ class BotGUI:
             anchor=tk.W
         )
         title_label.pack(fill=tk.X, pady=(0, 5))
+
+        startup_scan_toggle = tk.Checkbutton(
+            section_frame,
+            text="Parse missed BF wins on startup",
+            variable=self.parse_wins_on_startup,
+            command=self.save_parse_wins_on_startup,
+            font=("Segoe UI", 9),
+            bg=self.bg_color,
+            fg=self.fg_color,
+            activebackground=self.bg_color,
+            activeforeground=self.fg_color,
+            selectcolor=self.button_bg,
+            anchor=tk.W,
+            cursor="hand2"
+        )
+        startup_scan_toggle.pack(fill=tk.X, pady=(0, 5))
         
         # Stats display area
         stats_display = tk.Frame(section_frame, bg=self.button_bg, relief=tk.FLAT)
@@ -463,6 +487,37 @@ class BotGUI:
         
         # Initial stats load
         self.refresh_ocr_stats()
+
+    def save_parse_wins_on_startup(self):
+        """Persist the startup BF wins parsing preference"""
+        try:
+            if self.config is None:
+                raise RuntimeError("Configuration is not loaded")
+
+            if not self.config.has_section('RecZone'):
+                self.config.add_section('RecZone')
+
+            enabled = self.parse_wins_on_startup.get()
+            self.config.set('RecZone', 'parse_wins_on_startup', str(enabled).lower())
+
+            if getattr(sys, 'frozen', False):
+                application_path = Path(sys.executable).parent
+            else:
+                application_path = Path(__file__).parent
+            config_path = application_path / "config.ini"
+            with open(config_path, 'w', encoding='utf-8') as config_file:
+                self.config.write(config_file)
+
+            state = "enabled" if enabled else "disabled"
+            self.log_message(
+                f"✓ Startup BF wins parsing {state}; setting saved",
+                self.success_color
+            )
+        except Exception as e:
+            self.log_message(
+                f"✗ Could not save startup BF wins parsing setting: {e}",
+                self.error_color
+            )
     
     def refresh_ocr_stats(self):
         """Refresh OCR stats display"""
@@ -602,6 +657,11 @@ class BotGUI:
             
             BOT_TOKEN = config['Discord']['bot_token']
             COMMAND_PREFIX = config['Commands']['command_prefix']
+            parse_wins_on_startup = config.getboolean(
+                'RecZone',
+                'parse_wins_on_startup',
+                fallback=False
+            )
             
             # Create bot
             intents = discord.Intents.default()
@@ -661,10 +721,13 @@ class BotGUI:
                 print(f"Command prefix: {COMMAND_PREFIX}")
                 print("Bot is ready and running...")
                 
-                # Scan for missed screenshots on startup
-                print("\n🔄 Running startup scan for missed screenshots...")
-                await reczone_manager.scan_missed_messages(max_messages=100)
-                print("✅ Startup scan complete\n")
+                # Optionally scan for missed victory screenshots on startup
+                if parse_wins_on_startup:
+                    print("\n🔄 Running startup scan for missed BF wins...")
+                    await reczone_manager.scan_missed_messages(max_messages=100)
+                    print("✅ Startup BF wins scan complete\n")
+                else:
+                    print("⏭ Startup BF wins parsing is disabled")
                 
                 # Capture music bot basenames
                 print("🎵 Capturing music bot basenames...")
